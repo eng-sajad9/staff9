@@ -2395,6 +2395,52 @@ function getStatusBadgeHtml(status) {
   return `<span style="background:${bg};color:${color};border:1px solid ${border};padding:2.5px 8.5px;border-radius:6px;font-weight:bold;font-size:11.5px;display:inline-block;margin:0 2px;box-shadow:0 1px 2px rgba(0,0,0,0.02);">${val}</span>`;
 }
 
+// دالة بديلة لنسخ النصوص متوافقة تماماً مع أجهزة iOS (iPhone / iPad) وفي بيئات HTTP غير الآمنة
+function copyTextFallback(text) {
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  
+  // تجنب التمرير والظهور في الواجهة
+  textArea.style.position = "fixed";
+  textArea.style.top = "0";
+  textArea.style.left = "0";
+  textArea.style.width = "2em";
+  textArea.style.height = "2em";
+  textArea.style.padding = "0";
+  textArea.style.border = "none";
+  textArea.style.outline = "none";
+  textArea.style.boxShadow = "none";
+  textArea.style.background = "transparent";
+  textArea.style.opacity = "0";
+  
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  
+  // دعم التحديد لأجهزة iOS
+  const range = document.createRange();
+  range.selectNodeContents(textArea);
+  const selection = window.getSelection();
+  if (selection) {
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+  textArea.setSelectionRange(0, 999999);
+  
+  let success = false;
+  try {
+    success = document.execCommand("copy");
+  } catch (err) {
+    console.error("Fallback copy failed:", err);
+  }
+  
+  document.body.removeChild(textArea);
+  if (selection) {
+    selection.removeAllRanges();
+  }
+  return success;
+}
+
 // دالة نسخ نص التعديل بشكل مرتب وخالي من وسوم HTML لإرساله للموظفين
 window.copyLogText = function(btn) {
   try {
@@ -2412,7 +2458,7 @@ window.copyLogText = function(btn) {
     // سطر أفقي كامل مرتب، واضح ومفهوم لأي شخص
     const textToCopy = `📋 نشاط بالنظام | 🕒 الوقت: ${time} | 👤 المسؤول: ${user} | 📝 التفاصيل: ${details}`;
 
-    navigator.clipboard.writeText(textToCopy).then(() => {
+    const onSuccess = () => {
       // تغيير شكل الزر مؤقتاً لتأكيد النسخ
       const oldText = btn.innerHTML;
       btn.innerHTML = "✅ تم النسخ";
@@ -2425,10 +2471,28 @@ window.copyLogText = function(btn) {
         btn.style.color = "";
         btn.style.borderColor = "";
       }, 1500);
-    }).catch(err => {
-      console.error("Failed to copy text:", err);
-      showToast("❌ فشل نسخ النص تلقائياً", "error");
-    });
+    };
+
+    // المحاولة بالـ API الحديثة أولاً (إذا كانت مدعومة وفي بيئة آمنة)
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(textToCopy)
+        .then(onSuccess)
+        .catch(err => {
+          console.warn("Clipboard API failed, trying fallback:", err);
+          if (copyTextFallback(textToCopy)) {
+            onSuccess();
+          } else {
+            showToast("❌ فشل نسخ النص تلقائياً", "error");
+          }
+        });
+    } else {
+      // استخدام الطريقة البديلة مباشرة للأجهزة غير المتوافقة أو السياقات غير الآمنة (مثل HTTP المحلي)
+      if (copyTextFallback(textToCopy)) {
+        onSuccess();
+      } else {
+        showToast("❌ فشل نسخ النص تلقائياً", "error");
+      }
+    }
   } catch (e) {
     console.error("Error in copyLogText:", e);
   }
