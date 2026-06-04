@@ -1085,7 +1085,6 @@ function updateSidebarVisibility() {
     "sidebarMonthsManagerBtn",
     "sidebarEmpStatsBtn",
     "sidebarDeleteDataBtn",
-    "sidebarFeaturesTabBtn",
     "sidebarChangePassBtn",
     "sidebarUserControlBtn",
     "sidebarNotesSettingsBtn",
@@ -1097,6 +1096,24 @@ function updateSidebarVisibility() {
       if (el) el.style.display = isAdmin ? "block" : "none";
     } catch (e) { }
   });
+
+  try {
+    const sidebarFeaturesTabBtn = document.getElementById("sidebarFeaturesTabBtn");
+    if (sidebarFeaturesTabBtn) {
+      const canViewLog = window.currentUserData && window.currentUserData.canViewLog === true;
+      if (isAdmin || canViewLog) {
+        sidebarFeaturesTabBtn.style.display = "block";
+        sidebarFeaturesTabBtn.onclick = () => {
+          document.getElementById("sidebarMenu").classList.remove("open");
+          openActivityLogModal();
+        };
+      } else {
+        sidebarFeaturesTabBtn.style.display = "none";
+      }
+    }
+  } catch (e) {
+    console.warn("Features tab button visibility update failed", e);
+  }
 
   try {
     const sidebarAdminBtn = document.getElementById("sidebarAdminBtn");
@@ -2239,214 +2256,10 @@ function updateSidebarVisibility() {
       }
     });
 
-  // زر سجل النشاطات يظهر لجميع المستخدمين
-  let logBtn = document.getElementById("sidebarUserLogBtn");
-  if (!logBtn) {
-    logBtn = document.createElement("button");
-    logBtn.id = "sidebarUserLogBtn";
-    logBtn.style = "background: linear-gradient(135deg, #673ab7 0%, #5e35b1 100%); color: white; display: block; font-weight: 700; font-size: 14px; padding: 11px 18px; border-radius: 8px; border: none; cursor: pointer; transition: all 0.3s ease; margin: 10px 5%; box-shadow: 0 4px 12px #673ab744; width: calc(90% - 0px); text-align: right;";
-    logBtn.textContent = "📋 سجل النشاطات";
-    logBtn.onmouseover = function () { this.style.transform = 'translateY(-2px)'; this.style.boxShadow = '0 6px 16px #673ab755'; };
-    logBtn.onmouseout = function () { this.style.transform = 'translateY(0)'; this.style.boxShadow = '0 4px 12px #673ab744'; };
-    logBtn.onclick = function () {
-      document.getElementById("sidebarMenu").classList.remove("open");
-      // نافذة سجل النشاطات للمستخدم
-      let modal = document.getElementById("userLogModal");
-      if (modal) modal.remove();
-
-      modal = document.createElement("div");
-      modal.id = "userLogModal";
-      modal.style = `
-              position: fixed;
-              top: 0;
-              left: 0;
-              width: 100vw;
-              height: 100vh;
-              background: rgba(0, 0, 0, 0.5);
-              z-index: 7000;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              backdrop-filter: blur(4px);
-              padding: 10px;
-            `;
-
-      modal.innerHTML = `
-              <div style="
-                background: #ffffff;
-                width: 100%;
-                max-width: 1200px;
-                max-height: 92vh;
-                border-radius: 14px;
-                box-shadow: 0 16px 56px rgba(0,0,0,0.28);
-                display: flex;
-                flex-direction: column;
-                overflow: hidden;
-                animation: slideUp 0.3s ease;
-                position: relative;
-              ">
-                <!-- رأس احترافي -->
-                <div style="
-                  background: linear-gradient(135deg, #673ab7 0%, #5e35b1 100%);
-                  color: white;
-                  padding: 16px 20px;
-                  display: flex;
-                  justify-content: space-between;
-                  align-items: center;
-                  border-bottom: 3px solid #9c85d9;
-                  gap: 12px;
-                ">
-                  <div style="flex: 1; min-width: 200px;">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                      <h2 style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 0.6px;">📋 سجل نشاطاتك</h2>
-                      <div style="display: flex; align-items: center; gap: 5px; background: rgba(102, 255, 102, 0.2); padding: 4px 10px; border-radius: 16px;">
-                        <span style="width: 8px; height: 8px; background: #66ff66; border-radius: 50%; display: inline-block; box-shadow: 0 0 6px #66ff66;"></span>
-                        <span style="font-size: 11px; font-weight: 600; color: #66ff66;">متصل</span>
-                      </div>
-                    </div>
-                    <p style="margin: 0; font-size: 12px; opacity: 0.9;">آخر النشاطات التي قمت بها في النظام</p>
-                  </div>
-                  <button onclick="document.getElementById('userLogModal').remove()" style="
-                    background: rgba(255,255,255,0.15);
-                    border: 1px solid rgba(255,255,255,0.2);
-                    color: white;
-                    font-size: 20px;
-                    cursor: pointer;
-                    padding: 6px 8px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    border-radius: 6px;
-                    transition: all 0.2s;
-                    line-height: 1;
-                    font-weight: 300;
-                    width: 36px;
-                    height: 36px;
-                    flex-shrink: 0;
-                  " onmouseover="this.style.background='rgba(255,255,255,0.25)'; this.style.borderColor='rgba(255,255,255,0.35)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'; this.style.borderColor='rgba(255,255,255,0.2)'">✕</button>
-                </div>
-                
-                <!-- المحتوى الرئيسي -->
-                <div id="userLogContent" style="
-                  flex: 1;
-                  overflow-y: auto;
-                  overflow-x: hidden;
-                  padding: 0;
-                  direction: rtl;
-                  background: #fafafa;
-                ">
-                  <div style="text-align: center; padding: 80px 20px; color: #999;">
-                    <p style="font-size: 16px;">⏳ جاري التحميل...</p>
-                  </div>
-                </div>
-                
-                <!-- التذييل مع الإحصائيات -->
-                <div style="
-                  background: linear-gradient(135deg, #f8f9fa 0%, #f0f0f0 100%);
-                  padding: 16px 20px;
-                  border-top: 1px solid #e0e0e0;
-                  display: flex;
-                  justify-content: flex-end;
-                  align-items: center;
-                  gap: 16px;
-                  flex-wrap: wrap;
-                ">
-                  <div id="userLogStats" style="
-                    display: flex;
-                    gap: 20px;
-                    flex-wrap: wrap;
-                    align-items: center;
-                  "></div>
-                </div>
-              </div>
-            `;
-
-      document.body.appendChild(modal);
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.remove();
-      });
-
-      // تحميل سجل النشاطات لهذا المستخدم فقط
-      db.ref("activityLog")
-        .orderByChild("user")
-        .equalTo(currentUser)
-        .limitToLast(50)
-        .once("value")
-        .then((snapshot) => {
-          const logs = snapshot.val() || {};
-          const logsArray = Object.values(logs).reverse();
-
-          // عرض الإحصائيات
-          const statsDiv = document.getElementById('userLogStats');
-          statsDiv.innerHTML = `
-                  <div style="text-align: center;">
-                    <div style="font-size: 18px; font-weight: 800; color: #673ab7;">${logsArray.length}</div>
-                    <div style="font-size: 11px; color: #666; margin-top: 2px; font-weight: 500;">إجمالي النشاطات</div>
-                  </div>
-                `;
-
-          let html = '';
-          if (logsArray.length > 0) {
-            html = `
-                    <div style="overflow-x: auto;">
-                      <table style="width: 100%; border-collapse: collapse; background: white;">
-                        <thead>
-                          <tr style="background: linear-gradient(135deg, #673ab7 0%, #5e35b1 100%); color: white; font-weight: 700; position: sticky; top: 0; z-index: 10;">
-                            <th style="padding: 12px 12px; text-align: right; font-size: 12px; border-bottom: 2px solid #9c85d9; width: 18%; font-weight: 700;">الوقت</th>
-                            <th style="padding: 12px 12px; text-align: right; font-size: 12px; border-bottom: 2px solid #9c85d9; width: 18%; font-weight: 700;">النشاط</th>
-                            <th style="padding: 12px 12px; text-align: right; font-size: 12px; border-bottom: 2px solid #9c85d9; width: 64%; font-weight: 700;">الوصف</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                  `;
-
-            logsArray.forEach((item, idx) => {
-              const bgColor = idx % 2 === 0 ? '#ffffff' : '#f8f9fa';
-              const borderColor = idx % 2 === 0 ? '#f0f0f0' : '#e8e8e8';
-              let timeStr = '';
-
-              try {
-                if (item.timestamp && typeof item.timestamp === 'number') {
-                  const d = new Date(item.timestamp);
-                  const year = d.getFullYear();
-                  const month = String(d.getMonth() + 1).padStart(2, '0');
-                  const day = String(d.getDate()).padStart(2, '0');
-                  const hours = String(d.getHours()).padStart(2, '0');
-                  const minutes = String(d.getMinutes()).padStart(2, '0');
-                  timeStr = `${year}/${month}/${day} ${hours}:${minutes}`;
-                } else if (typeof item.time === 'string') {
-                  timeStr = item.time;
-                } else {
-                  timeStr = 'غير محدد';
-                }
-              } catch (e) {
-                timeStr = item.time || item.timestamp || 'غير محدد';
-              }
-
-              html += `
-                      <tr style="background: ${bgColor}; border-bottom: 1px solid ${borderColor}; transition: background 0.2s;" onmouseover="this.style.background='${idx % 2 === 0 ? '#f5f5f5' : '#f0f0f0'}'" onmouseout="this.style.background='${bgColor}'">
-                        <td style="padding: 11px 12px; text-align: right; font-size: 12px; color: #673ab7; font-weight: 700; font-family: 'Courier New', monospace;">${timeStr}</td>
-                        <td style="padding: 11px 12px; text-align: right; font-size: 12px; color: #333; font-weight: 600;">${item.action || '-'}</td>
-                        <td style="padding: 11px 12px; text-align: right; font-size: 12px; color: #555; line-height: 1.4;">${item.details || '-'}</td>
-                      </tr>
-                    `;
-            });
-
-            html += `
-                        </tbody>
-                      </table>
-                    </div>
-                  `;
-          } else {
-            html = '<div style="text-align: center; color: #999; padding: 80px 20px; background: white; font-size: 14px;">لا توجد نشاطات مسجلة</div>';
-          }
-
-          document.getElementById("userLogContent").innerHTML = html;
-        });
-    };
-    sidebarMenu.appendChild(logBtn);
-  } else {
-    logBtn.style.display = "block";
+  // إزالة زر سجل النشاطات القديم الخاص بالمستخدم لتجنب التعارض والتكرار
+  const oldUserLogBtn = document.getElementById("sidebarUserLogBtn");
+  if (oldUserLogBtn) {
+    oldUserLogBtn.remove();
   }
 
   if (localStorage.getItem("loggedUser")) {
@@ -2499,72 +2312,7 @@ document.getElementById("sidebarDeleteDataBtn").onclick = () => {
   document.getElementById("sidebarMenu").classList.remove("open");
   setTimeout(() => document.getElementById("btnDeleteData").click(), 100);
 };
-document.getElementById("sidebarFeaturesTabBtn").onclick = () => {
-  document.getElementById("sidebarMenu").classList.remove("open");
-  setTimeout(() => {
-    document.getElementById("btnFeaturesTab").click();
-    document.getElementById("featuresTab").style.display = "flex";
-    const featuresTabContent =
-      document.getElementById("featuresTabContent");
-    featuresTabContent.innerHTML = `
-        <div class="feature-section">
-          <h4>سجل النشاطات</h4>
-          <div id="activityLogBox">جاري التحميل...</div>
-        </div>
-        <div class="feature-section" style="display:flex;flex-direction:column;gap:8px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <h4 style="margin:0">معلومات النظام</h4>
-            <div id="featuresShowMorePlaceholder"></div>
-          </div>
-          <ul style="margin:0;padding:0 0 0 15px;">
-            <li>عدد الموظفين الحالي: <b>${employees.length}</b></li>
-            <li>اسم المستخدم الحالي: <b>${currentUser}</b></li>
-            <li>الدور: <b>${currentUserRole}</b></li>
-          </ul>
-        </div>
-      `;
-    db.ref("activityLog")
-      .limitToLast(30)
-      .once("value")
-      .then((snapshot) => {
-        const log = snapshot.val() || {};
-        // use shared renderer
-        if (typeof renderActivityLog === 'function') {
-          renderActivityLog(30, 'activityLogBox');
-        } else {
-          // fallback: basic rendering
-          let html = `<table class="activity-log-table">
-          <tr>
-            <th>الوقت</th>
-            <th>المستخدم</th>
-            <th>النشاط</th>
-            <th>الوصف</th>
-          </tr>`;
-          Object.values(log)
-            .reverse()
-            .forEach((item) => {
-              html += `<tr>
-            <td>${toEnglishNumbers(item.time || "")}</td>
-            <td>${item.user || ""}</td>
-            <td>${item.action || ""}</td>
-            <td>${item.details || ""}</td>
-          </tr>`;
-            });
-          html += `</table>`;
-          document.getElementById("activityLogBox").innerHTML = html;
-        }
-        // ensure a single well-styled 'عرض المزيد' button exists and is attached
-        ensureFeaturesShowMoreButton('activityLogBox');
-      });
-    // زر إغلاق التبويبة
-    const closeBtn = document.getElementById("closeFeaturesTab");
-    if (closeBtn) {
-      closeBtn.onclick = () => {
-        document.getElementById("featuresTab").style.display = "none";
-      };
-    }
-  }, 100);
-};
+
 // إخفاء جميع الأزرار الخارجية
 document.addEventListener("DOMContentLoaded", () => {
   [
@@ -2620,6 +2368,71 @@ function formatDateTimeNoSeconds(d) {
     return toEnglishNumbers(d.toLocaleDateString("ar-EG")) + " " + toEnglishNumbers(d.toLocaleTimeString("ar-EG"));
   }
 }
+
+// دالة توليد وسم الحالة بلون مخصص في سجل النشاطات
+function getStatusBadgeHtml(status) {
+  const val = (status && status.trim()) || "بدون";
+  let bg = "#f1f5f9"; // رصاصي ناعم
+  let color = "#475569";
+  let border = "#cbd5e1";
+  if (val === "شفت") {
+    bg = "#f0fdf4"; // أخضر ناعم
+    color = "#16a34a";
+    border = "#bbf7d0";
+  } else if (val === "نصف" || val === "نص") {
+    bg = "#fffbeb"; // أصفر ناعم
+    color = "#d97706";
+    border = "#fef08a";
+  } else if (val === "غياب" || val === "❌") {
+    bg = "#fef2f2"; // أحمر ناعم
+    color = "#dc2626";
+    border = "#fecaca";
+  } else if (val === "إجازة" || val === "اجازة") {
+    bg = "#f0f9ff"; // أزرق ناعم
+    color = "#0284c7";
+    border = "#bae6fd";
+  }
+  return `<span style="background:${bg};color:${color};border:1px solid ${border};padding:2.5px 8.5px;border-radius:6px;font-weight:bold;font-size:11.5px;display:inline-block;margin:0 2px;box-shadow:0 1px 2px rgba(0,0,0,0.02);">${val}</span>`;
+}
+
+// دالة نسخ نص التعديل بشكل مرتب وخالي من وسوم HTML لإرساله للموظفين
+window.copyLogText = function(btn) {
+  try {
+    const card = btn.closest('.log-card');
+    if (!card) return;
+    
+    // استخراج معلومات السجل من عناصر الواجهة مباشرة
+    const user = card.querySelector('.log-card-user').textContent.replace(/^[👤👑]\s*/, '').trim();
+    const action = card.querySelector('.log-card-action').textContent.trim();
+    const time = card.querySelector('.log-card-time').textContent.replace(/^🕒\s*/, '').trim();
+    let details = card.querySelector('.log-card-body').textContent.trim();
+    // استبدال علامة الاكس بكلمة "اجازة" فقط عند النسخ
+    details = details.replace(/❌/g, "اجازة");
+    
+    // سطر أفقي كامل مرتب، واضح ومفهوم لأي شخص
+    const textToCopy = `📋 نشاط بالنظام | 🕒 الوقت: ${time} | 👤 المسؤول: ${user} | 📝 التفاصيل: ${details}`;
+
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      // تغيير شكل الزر مؤقتاً لتأكيد النسخ
+      const oldText = btn.innerHTML;
+      btn.innerHTML = "✅ تم النسخ";
+      btn.style.background = "#198754";
+      btn.style.color = "#ffffff";
+      btn.style.borderColor = "#198754";
+      setTimeout(() => {
+        btn.innerHTML = oldText;
+        btn.style.background = "";
+        btn.style.color = "";
+        btn.style.borderColor = "";
+      }, 1500);
+    }).catch(err => {
+      console.error("Failed to copy text:", err);
+      showToast("❌ فشل نسخ النص تلقائياً", "error");
+    });
+  } catch (e) {
+    console.error("Error in copyLogText:", e);
+  }
+};
 
 // حفظ التعديلات فقط عند وجود تغيير فعلي
 async function saveData() {
@@ -2690,11 +2503,9 @@ async function saveData() {
           في اليوم
           <span style="color:#009688;font-weight:bold;">${change.day}</span>
           من
-          <span style="background:#d4edda;padding:2px 6px;border-radius:5px;">${change.old || "بدون"
-        }</span>
+          ${getStatusBadgeHtml(change.old)}
           إلى
-          <span style="background:#fff9db;padding:2px 6px;border-radius:5px;">${change.new || "بدون"
-        }</span>
+          ${getStatusBadgeHtml(change.new)}
         `,
         { time: change.time, user: change.user }
       );
@@ -2705,64 +2516,7 @@ async function saveData() {
   }
 }
 
-// زر ميزات متقدمة + زر الإغلاق
-document.getElementById("sidebarFeaturesTabBtn").onclick = () => {
-  document.getElementById("sidebarMenu").classList.remove("open");
-  document.getElementById("btnFeaturesTab").click();
-  document.getElementById("featuresTab").style.display = "flex";
-  const featuresTabContent =
-    document.getElementById("featuresTabContent");
-  featuresTabContent.innerHTML = `
-    <div class="feature-section">
-      <h4>سجل النشاطات</h4>
-      <div id="activityLogBox">جاري التحميل...</div>
-    </div>
-        <div class="feature-section" style="display:flex;flex-direction:column;gap:8px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <h4 style="margin:0">معلومات النظام</h4>
-            <div id="featuresShowMorePlaceholder"></div>
-          </div>
-          <ul style="margin:0;padding:0 0 0 15px;">
-        <li>عدد الموظفين الحالي: <b>${employees.length}</b></li>
-        <li>اسم المستخدم الحالي: <b>${currentUser}</b></li>
-        <li>الدور: <b>${currentUserRole}</b></li>
-      </ul>
-    </div>
-  `;
-  db.ref("activityLog")
-    .limitToLast(30)
-    .once("value")
-    .then((snapshot) => {
-      const log = snapshot.val() || {};
-      let html = `<table class="activity-log-table" style="width:100%;border-collapse:collapse;">
-        <tr>
-          <th style='background:#f0f0f0;padding:7px;'>الوقت</th>
-          <th style='background:#f0f0f0;padding:7px;'>المستخدم</th>
-          <th style='background:#f0f0f0;padding:7px;'>النشاط</th>
-          <th style='background:#f0f0f0;padding:7px;'>الوصف</th>
-        </tr>`;
-      Object.values(log)
-        .reverse()
-        .forEach((item) => {
-          html += `<tr style='${item.style || ""}'>
-          <td>${toEnglishNumbers(item.time || "")}</td>
-          <td>${item.user || ""}</td>
-          <td>${item.action || ""}</td>
-          <td>${item.details || ""}</td>
-        </tr>`;
-        });
-      html += `</table>`;
-      document.getElementById("activityLogBox").innerHTML = html;
-      ensureFeaturesShowMoreButton('activityLogBox');
-    });
-  // زر إغلاق التبويبة
-  const closeBtn = document.getElementById("closeFeaturesTab");
-  if (closeBtn) {
-    closeBtn.onclick = () => {
-      document.getElementById("featuresTab").style.display = "none";
-    };
-  }
-};
+
 
 // Helper: render activity log into a container with a 'عرض المزيد' button
 function renderActivityLog(limit, containerId) {
@@ -3287,6 +3041,13 @@ function setSession(userObj) {
   }
 }
 function clearSession() {
+  if (typeof _userListenerRef !== 'undefined' && _userListenerRef && currentUser) {
+    try {
+      db.ref('users/' + currentUser).off('value', _userListenerRef);
+    } catch(e) {}
+    _userListenerRef = null;
+  }
+  window.currentUserData = null;
   currentUser = "";
   currentUserRole = "";
   currentUserCanEdit = false;
@@ -4083,11 +3844,9 @@ async function saveAttendanceData() {
           في اليوم
           <span style=\"color:#009688;font-weight:bold;\">${change.day}</span>
           من
-          <span style=\"background:#d4edda;padding:2px 6px;border-radius:5px;\">${change.old || "بدون"
-        }</span>
+          ${getStatusBadgeHtml(change.old)}
           إلى
-          <span style=\"background:#fff9db;padding:2px 6px;border-radius:5px;\">${change.new || "بدون"
-        }</span>
+          ${getStatusBadgeHtml(change.new)}
         `,
         { time: change.time, user: change.user }
       );
@@ -4934,6 +4693,9 @@ function openAddAdvanceForm(existingAdvEncoded) {
       const idx = arr.findIndex(a => a.id === editingId);
       if (idx !== -1) {
         arr[idx] = Object.assign({}, arr[idx], { employee: emp, amount: amount, date: date, note: note }, meta);
+        if (typeof logActivity === 'function') {
+          logActivity("تعديل سلفة", `تم تعديل سلفة الموظف: ${emp} لتصبح بقيمة ${amount.toLocaleString()} د.ع بتاريخ ${date}${note ? ' (ملاحظة: ' + note + ')' : ''}`);
+        }
       }
     } else {
       const id = 'adv_' + Date.now();
@@ -4943,6 +4705,9 @@ function openAddAdvanceForm(existingAdvEncoded) {
         createdAt: new Date().toISOString() 
       };
       arr.push(newAdv);
+      if (typeof logActivity === 'function') {
+        logActivity("إضافة سلفة", `تم إضافة سلفة جديدة للموظف: ${emp} بقيمة ${amount.toLocaleString()} د.ع بتاريخ ${date}${note ? ' (ملاحظة: ' + note + ')' : ''}`);
+      }
     }
     saveAdvancesToStorage(arr);
     renderAdvancesTable();
@@ -4960,6 +4725,10 @@ function openAddAdvanceForm(existingAdvEncoded) {
 
 function deleteAdvance(id) {
   if (!confirm('هل أنت متأكد من حذف هذه السلفة؟')) return;
+  const a = (window._advancesRaw || []).find(x => x.id === id);
+  if (a && typeof logActivity === 'function') {
+    logActivity("حذف سلفة", `تم حذف سلفة الموظف: ${a.employee} بقيمة ${(a.amount || 0).toLocaleString()} د.ع بتاريخ ${a.date || ''}`);
+  }
   const arr = (window._advancesRaw || []).filter(a => a.id !== id);
   saveAdvancesToStorage(arr);
   renderAdvancesTable();
@@ -5779,15 +5548,361 @@ async function openActivityLogModal() {
           display: flex;
           align-items: center;
           justify-content: center;
-          backdrop-filter: blur(4px);
+          backdrop-filter: blur(8px);
           padding: 10px;
         `;
 
   modal.innerHTML = `
+          <style>
+            #activityLogModal .log-modal-body {
+              display: flex;
+              flex-direction: column;
+              height: 100%;
+              width: 100%;
+            }
+            /* Search & Filter Bar */
+            #activityLogModal .log-filter-bar {
+              display: flex;
+              gap: 12px;
+              padding: 14px 20px;
+              background: #f8fafc;
+              border-bottom: 1px solid #e2e8f0;
+              flex-wrap: wrap;
+              align-items: center;
+              direction: rtl;
+            }
+            #activityLogModal .log-filter-item {
+              flex: 1;
+              min-width: 140px;
+            }
+            #activityLogModal .log-filter-item.search-box {
+              flex: 2;
+              min-width: 200px;
+            }
+            #activityLogModal .log-filter-input {
+              width: 100%;
+              padding: 10px 14px;
+              border-radius: 10px;
+              border: 1px solid #cbd5e1;
+              font-size: 13px;
+              outline: none;
+              transition: all 0.2s ease;
+              background: #ffffff;
+              box-sizing: border-box;
+              font-family: inherit;
+            }
+            #activityLogModal .log-filter-input:focus {
+              border-color: #0d47a1;
+              box-shadow: 0 0 0 3px rgba(13, 71, 161, 0.1);
+            }
+            
+            /* Timeline / Card list */
+            #activityLogModal .log-list-wrapper {
+              display: flex;
+              flex-direction: column;
+              gap: 16px;
+              padding: 24px 28px 24px 20px;
+              direction: rtl;
+              position: relative;
+            }
+            #activityLogModal .log-list-wrapper::before {
+              content: '';
+              position: absolute;
+              top: 0;
+              bottom: 0;
+              right: 32px;
+              width: 3px;
+              background: linear-gradient(to bottom, #cbd5e1 0%, #cbd5e1 85%, transparent 100%);
+              border-radius: 4px;
+            }
+            #activityLogModal .log-card {
+              background: #ffffff;
+              border-radius: 12px;
+              border: 1px solid #e2e8f0;
+              padding: 16px 20px;
+              box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+              display: flex;
+              flex-direction: column;
+              gap: 10px;
+              transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+              border-right: 6px solid #64748b;
+              position: relative;
+              text-align: right;
+              margin-right: 25px; /* مسافة للخط الزمني */
+            }
+            #activityLogModal .log-card:hover {
+              transform: translateX(-4px);
+              box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+            }
+
+            /* Timeline dots on cards */
+            #activityLogModal .log-card::after {
+              content: '';
+              position: absolute;
+              right: -31px;
+              top: 20px;
+              width: 10px;
+              height: 10px;
+              border-radius: 50%;
+              background: #64748b;
+              border: 3px solid #ffffff;
+              box-shadow: 0 0 0 3px #cbd5e1;
+              z-index: 2;
+              transition: all 0.25s ease;
+            }
+            #activityLogModal .log-card:hover::after {
+              transform: scale(1.3);
+            }
+            
+            /* Left/Right Border & Dot Colors based on categories */
+            #activityLogModal .log-card.cat-add { border-right-color: #10b981 !important; }
+            #activityLogModal .log-card.cat-add::after { background: #10b981; box-shadow: 0 0 0 3px #d1fae5; }
+            #activityLogModal .log-card.cat-add:hover::after { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.3); }
+
+            #activityLogModal .log-card.cat-delete { border-right-color: #ef4444 !important; }
+            #activityLogModal .log-card.cat-delete::after { background: #ef4444; box-shadow: 0 0 0 3px #fee2e2; }
+            #activityLogModal .log-card.cat-delete:hover::after { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.3); }
+
+            #activityLogModal .log-card.cat-edit { border-right-color: #3b82f6 !important; }
+            #activityLogModal .log-card.cat-edit::after { background: #3b82f6; box-shadow: 0 0 0 3px #dbeafe; }
+            #activityLogModal .log-card.cat-edit:hover::after { box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.3); }
+
+            #activityLogModal .log-card.cat-auth { border-right-color: #8b5cf6 !important; }
+            #activityLogModal .log-card.cat-auth::after { background: #8b5cf6; box-shadow: 0 0 0 3px #f3e8ff; }
+            #activityLogModal .log-card.cat-auth:hover::after { box-shadow: 0 0 0 5px rgba(139, 92, 246, 0.3); }
+
+            #activityLogModal .log-card.cat-announce { border-right-color: #f59e0b !important; }
+            #activityLogModal .log-card.cat-announce::after { background: #f59e0b; box-shadow: 0 0 0 3px #fef3c7; }
+            #activityLogModal .log-card.cat-announce:hover::after { box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.3); }
+
+            #activityLogModal .log-card.cat-maintenance { border-right-color: #ec4899 !important; }
+            #activityLogModal .log-card.cat-maintenance::after { background: #ec4899; box-shadow: 0 0 0 3px #fce7f3; }
+            #activityLogModal .log-card.cat-maintenance:hover::after { box-shadow: 0 0 0 5px rgba(236, 72, 153, 0.3); }
+
+            /* Header inside Card */
+            #activityLogModal .log-card-header {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              gap: 12px;
+              width: 100%;
+            }
+            #activityLogModal .log-card-meta {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              flex-wrap: wrap;
+              flex: 1;
+            }
+            #activityLogModal .log-card-user {
+              background: #f1f5f9;
+              color: #475569;
+              padding: 4px 10px;
+              border-radius: 8px;
+              font-size: 11px;
+              font-weight: 700;
+              display: inline-flex;
+              align-items: center;
+              gap: 5px;
+              border: 1px solid #e2e8f0;
+            }
+            #activityLogModal .log-card-user.user-admin {
+              background: #fffbeb;
+              color: #b45309;
+              border-color: #fde68a;
+            }
+            #activityLogModal .log-card-action {
+              font-size: 11px;
+              font-weight: 800;
+              padding: 4px 10px;
+              border-radius: 8px;
+              display: inline-flex;
+              align-items: center;
+              gap: 5px;
+              box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            }
+            #activityLogModal .log-card.cat-add .log-card-action { background: #d1fae5; color: #065f46; }
+            #activityLogModal .log-card.cat-delete .log-card-action { background: #fee2e2; color: #991b1b; }
+            #activityLogModal .log-card.cat-edit .log-card-action { background: #dbeafe; color: #1e40af; }
+            #activityLogModal .log-card.cat-auth .log-card-action { background: #f3e8ff; color: #6b21a8; }
+            #activityLogModal .log-card.cat-announce .log-card-action { background: #fef3c7; color: #92400e; }
+            #activityLogModal .log-card.cat-maintenance .log-card-action { background: #fce7f3; color: #9d174d; }
+            #activityLogModal .log-card.cat-default .log-card-action { background: #f1f5f9; color: #475569; }
+
+            #activityLogModal .log-card-time {
+              font-size: 11px;
+              color: #64748b;
+              font-weight: 500;
+              display: inline-flex;
+              align-items: center;
+              gap: 5px;
+            }
+            
+            /* Body of Card */
+            #activityLogModal .log-card-body {
+              font-size: 13.5px;
+              color: #334155;
+              line-height: 1.6;
+              word-break: break-word;
+              font-weight: 500;
+            }
+            
+            /* Highlights within the body */
+            #activityLogModal .hl-emp {
+              background: #eff6ff;
+              color: #1e40af;
+              padding: 2.5px 8.5px;
+              border-radius: 6px;
+              font-weight: 800;
+              font-size: 11.5px;
+              border: 1px solid #bfdbfe;
+              display: inline-block;
+              margin: 0 2px;
+              box-shadow: 0 1px 2px rgba(30, 64, 175, 0.05);
+            }
+            #activityLogModal .hl-status {
+              padding: 2.5px 8.5px;
+              border-radius: 6px;
+              font-weight: 800;
+              font-size: 11.5px;
+              border: 1px solid transparent;
+              display: inline-block;
+              margin: 0 2px;
+              box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+            }
+            #activityLogModal .hl-status.status-shift {
+              background: #f0fdf4;
+              color: #16a34a;
+              border-color: #bbf7d0;
+            }
+            #activityLogModal .hl-status.status-half {
+              background: #fffbeb;
+              color: #d97706;
+              border-color: #fef08a;
+            }
+            #activityLogModal .hl-status.status-absent {
+              background: #fef2f2;
+              color: #dc2626;
+              border-color: #fecaca;
+            }
+            #activityLogModal .hl-status.status-leave {
+              background: #f0f9ff;
+              color: #0284c7;
+              border-color: #bae6fd;
+            }
+            #activityLogModal .hl-amount {
+              background: #faf5ff;
+              color: #7c3aed;
+              padding: 2.5px 8.5px;
+              border-radius: 6px;
+              font-weight: 800;
+              font-size: 11.5px;
+              border: 1px solid #e9d5ff;
+              display: inline-block;
+              margin: 0 2px;
+              box-shadow: 0 1px 2px rgba(124, 58, 237, 0.05);
+            }
+
+            #activityLogModal .log-copy-btn {
+              width: auto !important; /* إلغاء التمدد العريض الموروث */
+              margin: 0 !important; /* إلغاء الهوامش الموروثة */
+              background: #e3f0ff; /* لون أزرق خفيف متناسق مع التطبيق */
+              color: #0b74c9; /* لون النص الرئيسي للتطبيق */
+              border: 1px solid rgba(11, 116, 201, 0.25);
+              padding: 4px 10px;
+              border-radius: 6px;
+              font-size: 11.5px;
+              font-weight: 700;
+              cursor: pointer;
+              transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+              font-family: inherit;
+              box-shadow: 0 1px 2px rgba(11, 116, 201, 0.05);
+              flex-shrink: 0;
+            }
+            #activityLogModal .log-copy-btn:hover {
+              background: #0b74c9;
+              color: #ffffff;
+              border-color: #0b74c9;
+              box-shadow: 0 4px 6px rgba(11, 116, 201, 0.15);
+            }
+            #activityLogModal .log-copy-btn:active {
+              transform: scale(0.95);
+            }
+            
+            /* Custom Scrollbar */
+            #activityLogModal #activityLogContent::-webkit-scrollbar {
+              width: 6px;
+            }
+            #activityLogModal #activityLogContent::-webkit-scrollbar-track {
+              background: #f1f5f9;
+            }
+            #activityLogModal #activityLogContent::-webkit-scrollbar-thumb {
+              background: #cbd5e1;
+              border-radius: 3px;
+            }
+            #activityLogModal #activityLogContent::-webkit-scrollbar-thumb:hover {
+              background: #94a3b8;
+            }
+
+            /* Empty state */
+            #activityLogModal .log-empty-state {
+              text-align: center;
+              color: #64748b;
+              padding: 60px 20px;
+              font-size: 14px;
+              font-weight: 500;
+            }
+            
+            @media (max-width: 640px) {
+              #activityLogModal .log-filter-bar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+                padding: 10px 14px;
+              }
+              #activityLogModal .log-filter-item {
+                width: 100%;
+              }
+              #activityLogModal .log-list-wrapper {
+                padding: 16px 20px 16px 10px;
+              }
+              #activityLogModal .log-list-wrapper::before {
+                right: 24px;
+              }
+              #activityLogModal .log-card {
+                margin-right: 15px;
+                padding: 12px 14px;
+              }
+              #activityLogModal .log-card::after {
+                right: -21px;
+                width: 8px;
+                height: 8px;
+                top: 18px;
+              }
+              #activityLogModal .log-card-header {
+                display: flex;
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: 8px;
+              }
+              #activityLogModal .log-copy-btn {
+                width: auto !important;
+                margin: 0 !important;
+                padding: 3px 6px;
+                font-size: 10px;
+                border-radius: 5px;
+              }
+            }
+          </style>
+
           <div style="
             background: #ffffff;
             width: 100%;
-            max-width: 1200px;
+            max-width: 1000px;
             max-height: 92vh;
             border-radius: 14px;
             box-shadow: 0 16px 56px rgba(0,0,0,0.28);
@@ -5808,8 +5923,8 @@ async function openActivityLogModal() {
               border-bottom: 3px solid #42a5f5;
               gap: 12px;
             ">
-              <div style="flex: 1; min-width: 200px;">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+              <div style="flex: 1; min-width: 200px; text-align: right;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; justify-content: flex-start; direction: rtl;">
                   <h2 style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 0.6px;">📋 سجل النشاطات</h2>
                   <div style="display: flex; align-items: center; gap: 5px; background: rgba(102, 255, 102, 0.2); padding: 4px 10px; border-radius: 16px;">
                     <span style="width: 8px; height: 8px; background: #66ff66; border-radius: 50%; display: inline-block; box-shadow: 0 0 6px #66ff66;"></span>
@@ -5837,6 +5952,29 @@ async function openActivityLogModal() {
                 flex-shrink: 0;
               " onmouseover="this.style.background='rgba(255,255,255,0.25)'; this.style.borderColor='rgba(255,255,255,0.35)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'; this.style.borderColor='rgba(255,255,255,0.2)'">✕</button>
             </div>
+
+            <!-- شريط البحث والتصفية -->
+            <div class="log-filter-bar" id="logFilterBar" style="display: none;">
+              <div class="log-filter-item search-box">
+                <input type="text" id="logSearchInput" class="log-filter-input" placeholder="🔍 ابحث بالموظف، الإجراء أو الوصف..." />
+              </div>
+              <div class="log-filter-item" id="logUserFilterContainer">
+                <select id="logUserFilter" class="log-filter-input">
+                  <option value="">👤 كل المستخدمين</option>
+                </select>
+              </div>
+              <div class="log-filter-item">
+                <select id="logActionFilter" class="log-filter-input">
+                  <option value="">🎯 كل العمليات</option>
+                  <option value="add">➕ الإضافة</option>
+                  <option value="edit">✏️ التعديل</option>
+                  <option value="delete">🗑️ الحذف</option>
+                  <option value="auth">🔐 الدخول والخروج</option>
+                  <option value="announce">📢 الإعلانات</option>
+                  <option value="maintenance">🚧 الصيانة</option>
+                </select>
+              </div>
+            </div>
             
             <!-- المحتوى الرئيسي -->
             <div id="activityLogContent" style="
@@ -5845,10 +5983,10 @@ async function openActivityLogModal() {
               overflow-x: hidden;
               padding: 0;
               direction: rtl;
-              background: #fafafa;
+              background: #f8fafc;
             ">
               <div style="text-align: center; padding: 80px 20px; color: #999;">
-                <p style="font-size: 16px;">⏳ جاري التحميل...</p>
+                <p style="font-size: 16px;">⏳ جاري تحميل سجلات النشاطات...</p>
               </div>
             </div>
             
@@ -5862,6 +6000,7 @@ async function openActivityLogModal() {
               align-items: stretch;
               flex-wrap: wrap;
               gap: 16px;
+              direction: rtl;
             ">
               <!-- الإحصائيات -->
               <div id="activityLogStats" style="
@@ -5879,7 +6018,7 @@ async function openActivityLogModal() {
                 flex-direction: column;
                 justify-content: center;
               ">
-                <div style="text-align: left;">
+                <div style="text-align: right; direction: rtl;">
                   <div id="activityLogDateTime" style="font-size: 13px; font-weight: 700; color: #0d47a1; line-height: 1.6; font-family: 'Courier New', monospace;"></div>
                 </div>
               </div>
@@ -5891,59 +6030,78 @@ async function openActivityLogModal() {
 
   // تحميل البيانات
   try {
-    // أولاً، تحميل إعدادات رؤية المستخدمين (للمدير فقط)
-    const usersSnapshot = await db.ref("users").once("value");
-    const users = usersSnapshot.val() || {};
-    const hiddenUsers = new Set();
+    const userLogViewType = (window.currentUserData && window.currentUserData.logViewType) || 'all';
 
-    // تجميع أسماء المستخدمين المعطلة
-    Object.entries(users).forEach(([username, data]) => {
-      if (data.canViewLog === false) {
-        hiddenUsers.add(username);
-      }
-    });
-
-    const snapshot = await db.ref("activityLog").limitToLast(100).once("value");
+    const snapshot = await db.ref("activityLog").limitToLast(200).once("value");
     const logs = snapshot.val() || {};
-    let logsArray = Object.values(logs).reverse();
+    let allLogs = Object.values(logs).reverse();
 
-    // تصفية الأنشطة بناءً على إعدادات الرؤية
-    logsArray = logsArray.filter(log => {
-      // دائماً أظهر أنشطة المدير
-      if (log.user === 'admin') return true;
-      // أخفِ الأنشطة للمستخدمين المعطلين
-      return !hiddenUsers.has(log.user);
+    // تصفية الأنشطة بناءً على الصلاحية ودور المستخدم
+    if (currentUserRole !== 'admin') {
+      if (userLogViewType === 'self') {
+        allLogs = allLogs.filter(log => log.user === currentUser);
+        const userFilterContainer = document.getElementById('logUserFilterContainer');
+        if (userFilterContainer) userFilterContainer.style.display = 'none';
+      } else {
+        const userFilterContainer = document.getElementById('logUserFilterContainer');
+        if (userFilterContainer) userFilterContainer.style.display = 'block';
+      }
+    } else {
+      const userFilterContainer = document.getElementById('logUserFilterContainer');
+      if (userFilterContainer) userFilterContainer.style.display = 'block';
+    }
+
+    // تعبئة فلتر المستخدمين بالأسماء الفريدة المتاحة
+    const userFilterEl = document.getElementById('logUserFilter');
+    const uniqueUsersInLogs = [...new Set(allLogs.map(l => l.user || 'مجهول'))];
+    uniqueUsersInLogs.forEach(username => {
+      const opt = document.createElement('option');
+      opt.value = username;
+      opt.textContent = `👤 ${username}`;
+      userFilterEl.appendChild(opt);
     });
 
-    // حساب الإحصائيات
-    const uniqueUsers = new Set(logsArray.map(l => l.user)).size;
+    // إظهار شريط الفلاتر
+    const filterBar = document.getElementById('logFilterBar');
+    if (filterBar) filterBar.style.display = 'flex';
+
+    // حساب الإحصائيات الإجمالية
+    const totalCount = allLogs.length;
+    const uniqueUsersCount = uniqueUsersInLogs.length;
     const now = new Date();
-    const today = now.toLocaleDateString('ar-SA');
-    const todayLogs = logsArray.filter(l => {
+    const todayStr = now.toLocaleDateString('ar-SA');
+    const todayLogsCount = allLogs.filter(l => {
       const logDate = new Date(l.time || '').toLocaleDateString('ar-SA');
-      return logDate === today;
+      return logDate === todayStr;
     }).length;
 
     // عرض الإحصائيات في التذييل
     const statsDiv = document.getElementById('activityLogStats');
-    statsDiv.innerHTML = `
-            <div style="text-align: center;">
-              <div style="font-size: 18px; font-weight: 800; color: #0d47a1;">${logsArray.length}</div>
-              <div style="font-size: 11px; color: #666; margin-top: 2px; font-weight: 500;">إجمالي</div>
-            </div>
-            <div style="height: 45px; border-right: 2px solid #d0d0d0;"></div>
-            <div style="text-align: center;">
-              <div style="font-size: 18px; font-weight: 800; color: #ff9800;">${uniqueUsers}</div>
-              <div style="font-size: 11px; color: #666; margin-top: 2px; font-weight: 500;">مستخدمون</div>
-            </div>
-            <div style="height: 45px; border-right: 2px solid #d0d0d0;"></div>
-            <div style="text-align: center;">
-              <div style="font-size: 18px; font-weight: 800; color: #4caf50;">${todayLogs}</div>
-              <div style="font-size: 11px; color: #666; margin-top: 2px; font-weight: 500;">اليوم</div>
-            </div>
-          `;
+    function updateFooterStats(filteredCount) {
+      statsDiv.innerHTML = `
+        <div style="text-align: center;">
+          <div style="font-size: 18px; font-weight: 800; color: #0d47a1;" id="filteredLogCount">${filteredCount}</div>
+          <div style="font-size: 11px; color: #666; margin-top: 2px; font-weight: 500;">المعروضة</div>
+        </div>
+        <div style="height: 45px; border-right: 2px solid #d0d0d0;"></div>
+        <div style="text-align: center;">
+          <div style="font-size: 18px; font-weight: 800; color: #10b981;">${totalCount}</div>
+          <div style="font-size: 11px; color: #666; margin-top: 2px; font-weight: 500;">الإجمالي</div>
+        </div>
+        <div style="height: 45px; border-right: 2px solid #d0d0d0;"></div>
+        <div style="text-align: center;">
+          <div style="font-size: 18px; font-weight: 800; color: #ff9800;">${uniqueUsersCount}</div>
+          <div style="font-size: 11px; color: #666; margin-top: 2px; font-weight: 500;">مستخدمون</div>
+        </div>
+        <div style="height: 45px; border-right: 2px solid #d0d0d0;"></div>
+        <div style="text-align: center;">
+          <div style="font-size: 18px; font-weight: 800; color: #4caf50;">${todayLogsCount}</div>
+          <div style="font-size: 11px; color: #666; margin-top: 2px; font-weight: 500;">اليوم</div>
+        </div>
+      `;
+    }
 
-    // عرض التاريخ والوقت الحالي بشكل صحيح
+    // عرض التاريخ والوقت الحالي بشكل صحيح في التذييل
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
@@ -5956,84 +6114,164 @@ async function openActivityLogModal() {
             ${hours}:${minutes}:${seconds}
           `;
 
-    // عرض السجلات في جدول
-    let html = '';
-    if (logsArray.length > 0) {
-      html = `
-              <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; background: white;">
-                  <thead>
-                    <tr style="background: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%); color: white; font-weight: 700; position: sticky; top: 0; z-index: 10;">
-                      <th style="padding: 12px 12px; text-align: right; font-size: 12px; border-bottom: 2px solid #42a5f5; width: 18%; font-weight: 700;">الوقت</th>
-                      <th style="padding: 12px 12px; text-align: right; font-size: 12px; border-bottom: 2px solid #42a5f5; width: 14%; font-weight: 700;">المستخدم</th>
-                      <th style="padding: 12px 12px; text-align: right; font-size: 12px; border-bottom: 2px solid #42a5f5; width: 18%; font-weight: 700;">النشاط</th>
-                      <th style="padding: 12px 12px; text-align: right; font-size: 12px; border-bottom: 2px solid #42a5f5; width: 50%; font-weight: 700;">الوصف</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-            `;
-
-      logsArray.forEach((log, index) => {
-        let dateTimeStr = '';
-        try {
-          // التعامل مع الوقت - الأولوية للـ timestamp
-          let d;
-          if (log.timestamp && typeof log.timestamp === 'number') {
-            // إذا كان timestamp موجود (البيانات الجديدة)
-            d = new Date(log.timestamp);
-          } else if (typeof log.time === 'number') {
-            // إذا كان time timestamp
-            d = new Date(log.time);
-          } else if (typeof log.time === 'string') {
-            // إذا كان time نص، استخدمه مباشرة
-            dateTimeStr = log.time;
-          }
-
-          // إذا تم إنشاء Date بنجاح
-          if (d && !isNaN(d.getTime())) {
-            const year = d.getFullYear();
-            const monthNum = String(d.getMonth() + 1).padStart(2, '0');
-            const dayNum = String(d.getDate()).padStart(2, '0');
-            const hours = String(d.getHours()).padStart(2, '0');
-            const minutes = String(d.getMinutes()).padStart(2, '0');
-            dateTimeStr = `${year}/${monthNum}/${dayNum} ${hours}:${minutes}`;
-          } else if (!dateTimeStr) {
-            dateTimeStr = 'غير محدد';
-          }
-        } catch (e) {
-          dateTimeStr = log.time || log.timestamp || 'غير محدد';
-        }
-
-        const user = (log.user || 'مجهول').toString();
-        const action = (log.action || 'نشاط').toString();
-        const desc = (log.details || '-').toString();
-
-        // ألوان متناسقة للصفوف
-        const bgColor = index % 2 === 0 ? '#ffffff' : '#f8f9fa';
-        const borderColor = index % 2 === 0 ? '#f0f0f0' : '#e8e8e8';
-
-        html += `
-                <tr style="background: ${bgColor}; border-bottom: 1px solid ${borderColor}; transition: background 0.2s;" onmouseover="this.style.background='${index % 2 === 0 ? '#f5f5f5' : '#f0f0f0'}'" onmouseout="this.style.background='${bgColor}'">
-                  <td style="padding: 11px 12px; text-align: right; font-size: 12px; color: #ff9800; font-weight: 700; font-family: 'Courier New', monospace;">${dateTimeStr}</td>
-                  <td style="padding: 11px 12px; text-align: right; font-size: 12px; color: #333;">
-                    <span style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); color: #0d47a1; padding: 4px 10px; border-radius: 14px; font-weight: 600; display: inline-block;">${user}</span>
-                  </td>
-                  <td style="padding: 11px 12px; text-align: right; font-size: 12px; color: #333; font-weight: 600;">${action}</td>
-                  <td style="padding: 11px 12px; text-align: right; font-size: 12px; color: #555; line-height: 1.4;">${desc}</td>
-                </tr>
-              `;
-      });
-
-      html += `
-                  </tbody>
-                </table>
-              </div>
-            `;
-    } else {
-      html = '<div style="text-align: center; color: #999; padding: 80px 20px; background: white; font-size: 14px;">لا توجد نشاطات مسجلة بعد</div>';
+    // دوال المساعدة للأنشطة
+    function getActionCategory(action) {
+      if (!action) return 'default';
+      if (action.includes('إعلان')) return 'announce';
+      if (action.includes('صيانة')) return 'maintenance';
+      if (action.includes('دخول') || action.includes('خروج')) return 'auth';
+      if (action.includes('إضافة')) return 'add';
+      if (action.includes('حذف')) return 'delete';
+      if (action.includes('تعديل') || action.includes('تغيير') || action.includes('تحديث') || action.includes('تعيين')) return 'edit';
+      return 'default';
     }
 
-    document.getElementById('activityLogContent').innerHTML = html;
+    function getActionIcon(cat) {
+      switch(cat) {
+        case 'announce': return '📢';
+        case 'maintenance': return '🚧';
+        case 'auth': return '🔐';
+        case 'add': return '➕';
+        case 'delete': return '🗑️';
+        case 'edit': return '✏️';
+        default: return '📝';
+      }
+    }
+
+    function highlightKeywords(details) {
+      if (!details) return '-';
+      let html = details;
+
+      // تنظيف واستبدال أوسمة الحالات القديمة والمخزنة في قاعدة البيانات بألوان موحدة
+      html = html.replace(/<span style=\\?['"]background:[^"'>]*\\?['"]>(بدون|شفت|نص|نصف|غياب|❌|إجازة|اجازة)<\/span>/g, (match, p1) => {
+        return getStatusBadgeHtml(p1);
+      });
+
+      // 1. تمييز حالات الحضور
+      html = html.replace(/(شفت)/g, '<span class="hl-status status-shift">$1</span>');
+      html = html.replace(/(نصف|نص)/g, '<span class="hl-status status-half">$1</span>');
+      html = html.replace(/(غياب|❌)/g, '<span class="hl-status status-absent">$1</span>');
+      html = html.replace(/(إجازة|اجازة)/g, '<span class="hl-status status-leave">$1</span>');
+
+      // 2. تمييز المبالغ المالية
+      html = html.replace(/(\d+[\d,.\s]*\s*د\.ع)/g, '<span class="hl-amount">$1</span>');
+
+      // 3. تمييز أسماء الموظفين من المصفوفة العالمية
+      const emps = Array.isArray(window.employees) ? window.employees : [];
+      emps.forEach(emp => {
+        if (!emp || emp.length < 2) return;
+        const escapedEmp = emp.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(${escapedEmp})`, 'g');
+        html = html.replace(regex, '<span class="hl-emp">$1</span>');
+      });
+
+      return html;
+    }
+
+    // دالة عرض النشاطات المفلترة
+    function renderFilteredLogs() {
+      const searchVal = document.getElementById('logSearchInput').value.trim().toLowerCase();
+      const userVal = document.getElementById('logUserFilter').value;
+      const actionVal = document.getElementById('logActionFilter').value;
+
+      let filtered = allLogs;
+
+      // تطبيق الفلاتر
+      if (userVal) {
+        filtered = filtered.filter(l => (l.user || 'مجهول') === userVal);
+      }
+
+      if (actionVal) {
+        filtered = filtered.filter(l => getActionCategory(l.action) === actionVal);
+      }
+
+      if (searchVal) {
+        filtered = filtered.filter(l => {
+          const user = (l.user || '').toLowerCase();
+          const action = (l.action || '').toLowerCase();
+          const details = (l.details || '').toLowerCase();
+          return user.includes(searchVal) || action.includes(searchVal) || details.includes(searchVal);
+        });
+      }
+
+      // إنشاء كود HTML
+      let html = '';
+      if (filtered.length > 0) {
+        html = '<div class="log-list-wrapper">';
+        filtered.forEach(log => {
+          let dateTimeStr = '';
+          try {
+            let d;
+            if (log.timestamp && typeof log.timestamp === 'number') {
+              d = new Date(log.timestamp);
+            } else if (typeof log.time === 'number') {
+              d = new Date(log.time);
+            } else if (typeof log.time === 'string') {
+              dateTimeStr = log.time;
+            }
+
+            if (d && !isNaN(d.getTime())) {
+              const year = d.getFullYear();
+              const monthNum = String(d.getMonth() + 1).padStart(2, '0');
+              const dayNum = String(d.getDate()).padStart(2, '0');
+              const hours = String(d.getHours()).padStart(2, '0');
+              const minutes = String(d.getMinutes()).padStart(2, '0');
+              dateTimeStr = `${year}/${monthNum}/${dayNum} ${hours}:${minutes}`;
+            } else if (!dateTimeStr) {
+              dateTimeStr = 'غير محدد';
+            }
+          } catch (e) {
+            dateTimeStr = log.time || log.timestamp || 'غير محدد';
+          }
+
+          const user = log.user || 'مجهول';
+          const isUserAdmin = user.toLowerCase() === 'admin';
+          const userBadgeClass = isUserAdmin ? 'log-card-user user-admin' : 'log-card-user';
+          const userAvatar = isUserAdmin ? '👑' : '👤';
+
+          const action = log.action || 'نشاط';
+          const desc = log.details || '-';
+          const cat = getActionCategory(action);
+          const icon = getActionIcon(cat);
+          
+          html += `
+            <div class="log-card cat-${cat}" style="${log.style || ''}">
+              <div class="log-card-header">
+                <div class="log-card-meta">
+                  <span class="${userBadgeClass}">${userAvatar} ${user}</span>
+                  <span class="log-card-action">${icon} ${action}</span>
+                  <span class="log-card-time">🕒 ${dateTimeStr}</span>
+                </div>
+                <button class="log-copy-btn" onclick="window.copyLogText(this)" title="نسخ النشاط">📋 نسخ</button>
+              </div>
+              <div class="log-card-body">
+                ${highlightKeywords(desc)}
+              </div>
+            </div>
+          `;
+        });
+        html += '</div>';
+      } else {
+        html = `
+          <div class="log-empty-state">
+            <div style="font-size: 40px; margin-bottom: 12px;">🔍</div>
+            <div>لم يتم العثور على نشاطات مطابقة للبحث</div>
+          </div>
+        `;
+      }
+
+      document.getElementById('activityLogContent').innerHTML = html;
+      updateFooterStats(filtered.length);
+    }
+
+    // ربط أحداث التصفية والبحث
+    document.getElementById('logSearchInput').oninput = renderFilteredLogs;
+    document.getElementById('logUserFilter').onchange = renderFilteredLogs;
+    document.getElementById('logActionFilter').onchange = renderFilteredLogs;
+
+    // العرض الأولي
+    renderFilteredLogs();
+
   } catch (error) {
     console.error('Error loading activity log:', error);
     document.getElementById('activityLogContent').innerHTML = `
@@ -7375,6 +7613,9 @@ function publishAnnouncement(text, minutes, persist = true, opts) {
   // write to DB so it survives refresh across clients
   if (persist) {
     db.ref('announcements/current').set(payload).catch((e) => console.warn('Failed to persist announcement', e));
+    if (typeof logActivity === 'function') {
+      logActivity("إرسال إعلان", `تم نشر إعلان نصّه: "${payload.text}" لمدة ${payload.minutes} دقيقة`);
+    }
   }
   // show immediately locally (apply formatting if provided)
   showAnnouncementLocal(payload.text, payload.minutes, payload.opts);
@@ -7404,7 +7645,13 @@ document.getElementById('closeAnnouncementBar').onclick = function () {
   // disappears for everyone.
   try {
     if (hasPermission('announcements')) {
-      db.ref('announcements/current').remove().catch(() => { });
+      db.ref('announcements/current').once('value').then(snap => {
+        const cur = snap.val();
+        if (cur && typeof logActivity === 'function') {
+          logActivity("حذف إعلان", `تم إغلاق/إزالة الإعلان النشط: "${cur.text}"`);
+        }
+        db.ref('announcements/current').remove().catch(() => { });
+      });
     }
   } catch (e) { }
 };
@@ -7456,7 +7703,13 @@ document.getElementById("previewAnnounceBtn").onclick = function () {
 // Delete current announcement button handler (in modal)
 document.getElementById('deleteCurrentAnnounceBtn').onclick = function () {
   if (!confirm('هل أنت متأكد من حذف الإعلان الحالي؟')) return;
-  db.ref('announcements/current').remove()
+  db.ref('announcements/current').once('value').then(snap => {
+    const cur = snap.val();
+    if (cur && typeof logActivity === 'function') {
+      logActivity("حذف إعلان", `تم حذف الإعلان الحالي: "${cur.text}"`);
+    }
+    return db.ref('announcements/current').remove();
+  })
     .then(() => {
       alert('✅ تم حذف الإعلان الحالي');
       document.getElementById('announceModal').style.display = 'none';
@@ -7481,10 +7734,7 @@ document.getElementById("sidebarDeleteDataBtn").onclick = () => {
   document.getElementById("sidebarMenu").classList.remove("open");
   advancedDelete();
 };
-document.getElementById("sidebarFeaturesTabBtn").onclick = () => {
-  document.getElementById("sidebarMenu").classList.remove("open");
-  openActivityLogModal();
-};
+
 
 // نافذة تحكم صلاحيات سجل النشاطات للمدير
 document.getElementById("sidebarUserControlBtn").onclick = function () {
