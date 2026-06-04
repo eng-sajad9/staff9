@@ -5639,10 +5639,6 @@ async function openActivityLogModal() {
               flex: 1;
               min-width: 140px;
             }
-            #activityLogModal .log-filter-item.search-box {
-              flex: 2;
-              min-width: 200px;
-            }
             #activityLogModal .log-filter-input {
               width: 100%;
               padding: 10px 14px;
@@ -6019,9 +6015,6 @@ async function openActivityLogModal() {
 
             <!-- شريط البحث والتصفية -->
             <div class="log-filter-bar" id="logFilterBar" style="display: none;">
-              <div class="log-filter-item search-box">
-                <input type="text" id="logSearchInput" class="log-filter-input" placeholder="🔍 ابحث بالموظف، الإجراء أو الوصف..." />
-              </div>
               <div class="log-filter-item" id="logUserFilterContainer">
                 <select id="logUserFilter" class="log-filter-input">
                   <option value="">👤 كل المستخدمين</option>
@@ -6234,7 +6227,6 @@ async function openActivityLogModal() {
 
     // دالة عرض النشاطات المفلترة
     function renderFilteredLogs() {
-      const searchVal = document.getElementById('logSearchInput').value.trim().toLowerCase();
       const userVal = document.getElementById('logUserFilter').value;
       const actionVal = document.getElementById('logActionFilter').value;
 
@@ -6247,15 +6239,6 @@ async function openActivityLogModal() {
 
       if (actionVal) {
         filtered = filtered.filter(l => getActionCategory(l.action) === actionVal);
-      }
-
-      if (searchVal) {
-        filtered = filtered.filter(l => {
-          const user = (l.user || '').toLowerCase();
-          const action = (l.action || '').toLowerCase();
-          const details = (l.details || '').toLowerCase();
-          return user.includes(searchVal) || action.includes(searchVal) || details.includes(searchVal);
-        });
       }
 
       // إنشاء كود HTML
@@ -6328,8 +6311,7 @@ async function openActivityLogModal() {
       updateFooterStats(filtered.length);
     }
 
-    // ربط أحداث التصفية والبحث
-    document.getElementById('logSearchInput').oninput = renderFilteredLogs;
+    // ربط أحداث التصفية
     document.getElementById('logUserFilter').onchange = renderFilteredLogs;
     document.getElementById('logActionFilter').onchange = renderFilteredLogs;
 
