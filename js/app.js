@@ -2400,32 +2400,38 @@ function copyTextFallback(text) {
   const textArea = document.createElement("textarea");
   textArea.value = text;
   
-  // تجنب التمرير والظهور في الواجهة
-  textArea.style.position = "fixed";
+  // لمنع لوحة المفاتيح ومنع التكبير التلقائي في iOS
+  textArea.setAttribute("readonly", "");
+  textArea.style.position = "absolute";
+  textArea.style.left = "-9999px";
   textArea.style.top = "0";
-  textArea.style.left = "0";
-  textArea.style.width = "2em";
-  textArea.style.height = "2em";
-  textArea.style.padding = "0";
-  textArea.style.border = "none";
-  textArea.style.outline = "none";
-  textArea.style.boxShadow = "none";
-  textArea.style.background = "transparent";
-  textArea.style.opacity = "0";
+  textArea.style.fontSize = "12pt"; 
   
   document.body.appendChild(textArea);
-  textArea.focus();
-  textArea.select();
   
-  // دعم التحديد لأجهزة iOS
+  // حفظ قيم الحالات الافتراضية
+  const oldContentEditable = textArea.contentEditable;
+  const oldReadOnly = textArea.readOnly;
+  
+  // تهيئة خاصة للتحديد في iOS
+  textArea.contentEditable = "true";
+  textArea.readOnly = false;
+  
   const range = document.createRange();
   range.selectNodeContents(textArea);
+  
   const selection = window.getSelection();
   if (selection) {
     selection.removeAllRanges();
     selection.addRange(range);
   }
+  
+  // التحديد العام
   textArea.setSelectionRange(0, 999999);
+  
+  // إعادة الحالات لمنع تفاعل الكيبورد
+  textArea.contentEditable = oldContentEditable;
+  textArea.readOnly = oldReadOnly;
   
   let success = false;
   try {
@@ -2434,10 +2440,12 @@ function copyTextFallback(text) {
     console.error("Fallback copy failed:", err);
   }
   
-  document.body.removeChild(textArea);
+  // تنظيف التحديد ومسح العنصر المؤقت
   if (selection) {
     selection.removeAllRanges();
   }
+  document.body.removeChild(textArea);
+  
   return success;
 }
 
@@ -2473,8 +2481,20 @@ window.copyLogText = function(btn) {
       }, 1500);
     };
 
-    // المحاولة بالـ API الحديثة أولاً (إذا كانت مدعومة وفي بيئة آمنة)
-    if (navigator.clipboard && window.isSecureContext) {
+    // فحص ما إذا كان المستخدم على جهاز آبل (iOS أو macOS Safari) لاستخدام النسخ المتزامن مباشرة
+    const isApple = /ipad|iphone|ipod/i.test(navigator.userAgent) || 
+                    (navigator.userAgent.includes("Mac") && "ontouchend" in document) ||
+                    /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+    if (isApple) {
+      // تشغيل النسخ الاحتياطي فوراً وبشكل متزامن لمنع الحظر الأمني في متصفح سفاري
+      if (copyTextFallback(textToCopy)) {
+        onSuccess();
+      } else {
+        showToast("❌ فشل نسخ النص", "error");
+      }
+    } else if (navigator.clipboard && window.isSecureContext) {
+      // المحاولة بالـ API الحديثة أولاً للأنظمة الأخرى
       navigator.clipboard.writeText(textToCopy)
         .then(onSuccess)
         .catch(err => {
@@ -2482,15 +2502,15 @@ window.copyLogText = function(btn) {
           if (copyTextFallback(textToCopy)) {
             onSuccess();
           } else {
-            showToast("❌ فشل نسخ النص تلقائياً", "error");
+            showToast("❌ فشل نسخ النص", "error");
           }
         });
     } else {
-      // استخدام الطريقة البديلة مباشرة للأجهزة غير المتوافقة أو السياقات غير الآمنة (مثل HTTP المحلي)
+      // استخدام الطريقة البديلة مباشرة للأجهزة غير المتوافقة أو السياقات غير الآمنة (مثل HTTP)
       if (copyTextFallback(textToCopy)) {
         onSuccess();
       } else {
-        showToast("❌ فشل نسخ النص تلقائياً", "error");
+        showToast("❌ فشل نسخ النص", "error");
       }
     }
   } catch (e) {
