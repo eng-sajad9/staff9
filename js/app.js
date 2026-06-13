@@ -2545,7 +2545,7 @@ async function saveData() {
         );
         if (selectElement) {
           const newValue = selectElement.value;
-          const oldValue = savedData[day.key]
+          const oldValue = (savedData[day.key] && savedData[day.key][employee] !== undefined)
             ? savedData[day.key][employee]
             : "";
           if (newValue !== oldValue) {
@@ -3886,7 +3886,7 @@ async function saveAttendanceData() {
         );
         if (selectElement) {
           const newValue = selectElement.value;
-          const oldValue = savedData[day.key]
+          const oldValue = (savedData[day.key] && savedData[day.key][employee] !== undefined)
             ? savedData[day.key][employee]
             : "";
           if (newValue !== oldValue) {
@@ -8149,6 +8149,14 @@ try {
   const avatarPreview = document.getElementById('avatarPreview');
   const avatarSizeIn = document.getElementById('aboutEditAvatarSize');
   const avatarSizeVal = document.getElementById('aboutEditAvatarSizeVal');
+  
+  // Audio configuration elements
+  const audioFileIn = document.getElementById('aboutEditAudioFile');
+  const audioFileBtn = document.getElementById('aboutEditAudioFileBtn');
+  const audioFileName = document.getElementById('aboutEditAudioFileName');
+  const audioUrlIn = document.getElementById('aboutEditAudioUrl');
+  let _audioDataURL = null;
+
   // hold a selected avatar dataURL (from file) so saveChanges can persist it
   let _avatarDataURL = null;
   // avatar offset in percent (0..100) for background-position
@@ -8188,10 +8196,20 @@ try {
     try {
       _avatarDataURL = null;
       const avatarEl = document.getElementById('founderAvatar');
-      // if avatar contains an <img>, use its src
-      const img = avatarEl && avatarEl.querySelector && avatarEl.querySelector('img');
-      if (img && img.src) { renderAvatarPreview(img.src); }
-      else {
+      let currentAvatarSrc = null;
+      if (avatarEl) {
+        const bg = avatarEl.style && avatarEl.style.backgroundImage;
+        if (bg && bg.indexOf('url(') >= 0) {
+          currentAvatarSrc = bg.replace(/^url\(["']?|["']?\)$/g, '').replace(/^url\(|\)$/g, '').replace(/^["']|["']$/g, '');
+        } else {
+          const img = avatarEl.querySelector && avatarEl.querySelector('img');
+          if (img && img.src) currentAvatarSrc = img.src;
+        }
+      }
+      
+      if (currentAvatarSrc) {
+        renderAvatarPreview(currentAvatarSrc);
+      } else {
         // else show initials
         const initials = avatarEl ? avatarEl.textContent.trim() : '';
         renderAvatarPreview(null, initials);
@@ -8218,6 +8236,43 @@ try {
           featTa.value = items.join('\n');
         }
       } catch (e) { }
+      
+      // Dynamic on-demand loading of developer audio for the editor
+      (async function() {
+        if (audioFileName) audioFileName.textContent = 'جاري تحميل بيانات الصوت...';
+        _audioDataURL = null;
+        if (audioUrlIn) audioUrlIn.value = '';
+        if (audioFileIn) audioFileIn.value = '';
+
+        let audioData = null;
+        if (typeof db !== 'undefined' && db && typeof db.ref === 'function') {
+          try {
+            const snap = await db.ref('settings/founder_audio').once('value');
+            audioData = snap.val();
+          } catch (e) { }
+        } else {
+          try {
+            audioData = localStorage.getItem('settings_founder_audio');
+          } catch (e) { }
+        }
+
+        if (audioData) {
+          if (audioData.startsWith('data:')) {
+            _audioDataURL = audioData;
+            if (audioFileName) audioFileName.textContent = 'ملف صوتي محلي مخزن';
+            if (audioUrlIn) audioUrlIn.value = '';
+          } else {
+            _audioDataURL = null;
+            if (audioUrlIn) audioUrlIn.value = audioData;
+            if (audioFileName) audioFileName.textContent = 'لا يوجد ملف صوتي محلي';
+          }
+        } else {
+          _audioDataURL = null;
+          if (audioUrlIn) audioUrlIn.value = '';
+          if (audioFileName) audioFileName.textContent = 'لا يوجد ملف صوتي محلي';
+        }
+      })();
+
     } catch (e) { }
     modal.style.display = 'flex';
   }
@@ -8275,6 +8330,43 @@ try {
   // allow pasting a URL and preview
   if (avatarUrlIn) {
     avatarUrlIn.addEventListener('change', function () { _avatarDataURL = null; renderAvatarPreview(this.value || null); });
+  }
+
+  // developer audio input handlers
+  if (audioFileBtn && audioFileIn) {
+    audioFileBtn.addEventListener('click', function () { audioFileIn.click(); });
+  }
+  if (audioFileIn) {
+    audioFileIn.addEventListener('change', function () {
+      const f = this.files && this.files[0];
+      if (!f) return;
+      if (f.size > 800 * 1024) {
+        alert('حجم ملف الصوت يجب أن يكون أقل من 800 كيلوبايت لضمان سرعة أداء النظام.');
+        this.value = '';
+        return;
+      }
+      if (audioFileName) audioFileName.textContent = 'جاري قراءة الملف...';
+      const fr = new FileReader();
+      fr.onload = function (ev) {
+        _audioDataURL = ev.target.result;
+        if (audioFileName) audioFileName.textContent = f.name + ' (' + Math.round(f.size / 1024) + 'KB)';
+        if (audioUrlIn) audioUrlIn.value = '';
+      };
+      fr.onerror = function () {
+        alert('فشلت قراءة ملف الصوت.');
+        if (audioFileName) audioFileName.textContent = 'خطأ في قراءة الملف';
+      };
+      fr.readAsDataURL(f);
+    });
+  }
+  if (audioUrlIn) {
+    audioUrlIn.addEventListener('change', function () {
+      if (this.value.trim()) {
+        _audioDataURL = null;
+        if (audioFileName) audioFileName.textContent = 'لا يوجد ملف صوتي محلي';
+        if (audioFileIn) audioFileIn.value = '';
+      }
+    });
   }
 
   // avatar size slider handling
@@ -8413,15 +8505,31 @@ try {
       // attach features collected earlier (if any)
       try { if (Array.isArray(_featuresLines) && _featuresLines.length > 0) appPayload.features = _featuresLines; } catch (e) { }
       const footerPayload = { credit: (footerCreditIn && footerCreditIn.value) ? footerCreditIn.value : '' };
+      
+      let finalAudioValue = '';
+      if (_audioDataURL) {
+        finalAudioValue = _audioDataURL;
+      } else if (audioUrlIn && audioUrlIn.value.trim()) {
+        finalAudioValue = audioUrlIn.value.trim();
+      }
+
       if (typeof db !== 'undefined' && db && typeof db.ref === 'function') {
         // write founder and app settings
         await db.ref('settings/founder').set(founderPayload).catch(() => { });
         await db.ref('settings/app').set(appPayload).catch(() => { });
         await db.ref('settings/footer').set(footerPayload).catch(() => { });
+        await db.ref('settings/founder_audio').set(finalAudioValue).catch(() => { });
       } else {
         try { localStorage.setItem('settings_founder', JSON.stringify(founderPayload)); } catch (e) { }
         try { localStorage.setItem('settings_app', JSON.stringify(appPayload)); } catch (e) { }
         try { localStorage.setItem('settings_footer', JSON.stringify(footerPayload)); } catch (e) { }
+        try {
+          if (finalAudioValue) {
+            localStorage.setItem('settings_founder_audio', finalAudioValue);
+          } else {
+            localStorage.removeItem('settings_founder_audio');
+          }
+        } catch (e) { }
       }
     } catch (e) { console && console.warn && console.warn('Persist founder failed', e); }
 
@@ -8444,6 +8552,137 @@ try {
   if (cancelBtn) cancelBtn.addEventListener('click', closeEditor);
   if (saveBtn) saveBtn.addEventListener('click', saveChanges);
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && modal && modal.style.display === 'flex') closeEditor(); });
+})();
+
+// Founder Avatar Music Playback Controller (On-demand Fetching)
+(function () {
+  let activeAudio = null;
+  let playTimeout = null;
+  let isPlaying = false;
+  let isFetching = false;
+
+  const avatarEl = document.getElementById('founderAvatar');
+  if (!avatarEl) return;
+
+  // Make avatar pointer-events friendly and add title
+  avatarEl.style.cursor = 'pointer';
+  avatarEl.title = 'اضغط لتشغيل موسيقى المطور (30 ثانية)';
+
+  async function fetchAudioData() {
+    if (typeof db !== 'undefined' && db && typeof db.ref === 'function') {
+      try {
+        const snap = await db.ref('settings/founder_audio').once('value');
+        return snap.val();
+      } catch (e) {
+        console.warn('Failed to fetch founder audio from database', e);
+        return null;
+      }
+    } else {
+      try {
+        return localStorage.getItem('settings_founder_audio');
+      } catch (e) {
+        return null;
+      }
+    }
+  }
+
+  function stopMusic() {
+    if (activeAudio) {
+      try {
+        activeAudio.pause();
+        activeAudio.currentTime = 0;
+      } catch (e) {}
+    }
+    if (playTimeout) {
+      clearTimeout(playTimeout);
+      playTimeout = null;
+    }
+    isPlaying = false;
+    avatarEl.classList.remove('playing-music');
+  }
+
+  async function playMusic() {
+    if (isFetching) return;
+    isFetching = true;
+    
+    // Show a loading state on the avatar (e.g. slight opacity)
+    avatarEl.style.opacity = '0.6';
+    
+    const audioData = await fetchAudioData();
+    avatarEl.style.opacity = '1';
+    isFetching = false;
+
+    if (!audioData) {
+      showToast('⚠️ لم يتم رفع أو تكوين ملف صوتي للمطور بعد.', '#e65100');
+      return;
+    }
+
+    try {
+      activeAudio = new Audio(audioData);
+      activeAudio.volume = 0.8;
+      
+      activeAudio.addEventListener('canplaythrough', () => {
+        if (isPlaying) return; // Prevent double trigger
+        activeAudio.play().then(() => {
+          isPlaying = true;
+          avatarEl.classList.add('playing-music');
+          
+          // Setup 30 seconds limit
+          playTimeout = setTimeout(() => {
+            stopMusic();
+            showToast('🎵 انتهت 30 ثانية من الموسيقى', '#311b92');
+          }, 30000);
+        }).catch(err => {
+          console.error('Playback failed', err);
+          showToast('❌ فشل تشغيل الصوت. قد يكون الرابط غير صالح أو المتصفح يمنع التشغيل التلقائي.', '#b71c1c');
+          stopMusic();
+        });
+      });
+
+      activeAudio.addEventListener('error', (e) => {
+        console.error('Audio element error', e);
+        showToast('❌ خطأ في تحميل ملف الصوت. يرجى التحقق من الرابط أو الملف.', '#b71c1c');
+        stopMusic();
+      });
+
+    } catch (e) {
+      console.error('Audio initialization failed', e);
+      showToast('❌ فشل تشغيل ملف الصوت.', '#b71c1c');
+      stopMusic();
+    }
+  }
+
+  avatarEl.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (isPlaying) {
+      stopMusic();
+    } else {
+      playMusic();
+    }
+  });
+
+  function showToast(message, bgColor) {
+    const isAdmin = (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin');
+    if (!isAdmin) return;
+
+    try {
+      const t = document.createElement('div');
+      t.textContent = message;
+      t.style.position = 'fixed';
+      t.style.bottom = '18px';
+      t.style.right = '18px';
+      t.style.background = bgColor || '#333';
+      t.style.color = '#fff';
+      t.style.padding = '10px 16px';
+      t.style.borderRadius = '8px';
+      t.style.zIndex = '16000';
+      t.style.boxShadow = '0 4px 12px rgba(0,0,0,0.25)';
+      t.style.fontFamily = 'Tajawal, sans-serif';
+      t.style.fontSize = '14px';
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    } catch (e) {}
+  }
 })();
 
 (function () {
@@ -8856,7 +9095,7 @@ try {
       try { updatePdfProgress(35, ' معالجة الصفحات', 'جاري تنظيم الهوامش والبيانات...'); } catch (e) { }
 
       // إعدادات مقاسات A4 بالبكسل (تقريبي لـ 96dpi)
-      const a4HeightPx = 1050; // زيادة الهوامش
+      const a4HeightPx = 880; // تقليل الارتفاع لتفادي قطع الصفوف في ذيل الصفحة
       const rows = Array.from(tableClone.querySelectorAll('tbody tr'));
       const theadClone = tableClone.querySelector('thead').cloneNode(true);
       
@@ -9025,7 +9264,14 @@ try {
       updatePdfProgress(85, ' جاري الإرسال...', 'يتم الآن الاتصال بخوادم تيليجرام ورفع التقرير النهائي...');
 
       // إرسال إلى تيليجرام
-      const filename = `تقرير_حضور_${year}_${month + 1}_${new Date().getTime()}.pdf`;
+      const arabicMonths = [
+        "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
+        "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"
+      ];
+      const monthName = arabicMonths[month] || `شهر_${month + 1}`;
+      const now = new Date();
+      const timeStr = `${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}_${String(now.getDate()).padStart(2, '0')}_(${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')})`;
+      const filename = `تقرير_حضور_${monthName}_${year}_بتاريخ_${timeStr}.pdf`;
       const sent = await sendPDFToTelegram(pdfBlob, filename);
 
       if (sent) {
