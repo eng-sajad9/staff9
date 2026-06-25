@@ -1125,6 +1125,33 @@ function updateSidebarVisibility() {
     const telegramSection = document.getElementById('telegramSettings');
     if (telegramSection) telegramSection.style.display = isAdmin ? 'block' : 'none';
   } catch (e) { }
+  // تحقق من صلاحية الموسيقى
+  try {
+    const hasMusic = (currentUserRole === 'admin' || (window.currentUserData && window.currentUserData.hasMusic !== false));
+    const sidebarMusicBtn = document.getElementById("sidebarMusicBtn");
+    const widget = document.getElementById("music-player-widget");
+
+    if (hasMusic) {
+      if (sidebarMusicBtn) sidebarMusicBtn.style.display = "block";
+    } else {
+      if (sidebarMusicBtn) sidebarMusicBtn.style.display = "none";
+      if (widget) {
+        widget.classList.add("closed");
+        widget.classList.remove("expanded", "minimized");
+      }
+      // Pause active music
+      const audioPlayer = document.getElementById("music-audio-player");
+      if (audioPlayer) audioPlayer.pause();
+      try {
+        if (typeof ytPlayer !== 'undefined' && ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
+          ytPlayer.pauseVideo();
+        }
+      } catch(e){}
+    }
+  } catch (e) {
+    console.warn("Music visibility update failed", e);
+  }
+
   // ربط أحداث الأزرار
   try {
     // زر الإشعارات للمدير
@@ -4152,6 +4179,12 @@ async function loadUsers() {
               title="ربط بموظف">
               👤 موظف
             </button>
+            ${!isAdmin ? `
+            <button class="uc-btn ${data.hasMusic !== false ? 'uc-btn-ok' : 'uc-btn-warn'}"
+              onclick="toggleUserMusic('${username}', ${data.hasMusic !== false})"
+              title="${data.hasMusic !== false ? 'تعطيل تشغيل الموسيقى' : 'تفعيل تشغيل الموسيقى'}">
+              ${data.hasMusic !== false ? '🎵 مفعّل' : '🎵 معطّل'}
+            </button>` : ''}
             ${!isMe && !isAdmin ? `
             <button class="uc-btn uc-btn-purple"
               onclick="openSupervisorModal('${username}', this)"
@@ -4232,6 +4265,22 @@ async function toggleUserEdit(username, currentCanEdit) {
     return;
   }
   await db.ref("users/" + username + "/canEdit").set(!currentCanEdit);
+  loadUsers();
+}
+
+// تبديل صلاحية تشغيل الموسيقى للمستخدم
+async function toggleUserMusic(username, currentHasMusic) {
+  if (currentUserRole !== "admin") {
+    alert("غير مصرح لك بإجراء هذا التعديل.");
+    return;
+  }
+  const snap = await db.ref("users/" + username).once("value");
+  const targetUser = snap.val();
+  if (targetUser && targetUser.role === "admin") {
+    alert("لا يمكن تعديل صلاحية حساب المدير.");
+    return;
+  }
+  await db.ref("users/" + username + "/hasMusic").set(!currentHasMusic);
   loadUsers();
 }
 
@@ -9243,15 +9292,18 @@ try {
   // طباعة وإرسال PDF
   async function printAndSendPDF() {
     try {
-      // تحميل مكتبات PDF قبل الاستخدام
-      await loadPDFLibraries();
+      // Show progress overlay immediately to give user instant feedback
+      startPdfProgress();
 
       if (!telegramSettings.botToken || !telegramSettings.chatId) {
+        completePdfProgress(false, '❌ إعدادات غير مكتملة', 'يرجى إعداد تيليجرام أولاً من لوحة التحكم (Admin Panel)');
         alert('❌ يرجى إعداد تيليجرام أولاً من لوحة التحكم (Admin Panel)');
         return;
       }
-      // Show PDF overlay progress
-      startPdfProgress();
+
+      // Indicate loading of external PDF libraries
+      updatePdfProgress(5, 'جاري تحميل المكتبات...', 'يتم تنزيل مكتبات التقرير من خادم السحابة...');
+      await loadPDFLibraries();
 
       // إنشاء PDF
       updatePdfProgress(20, ' تحضير الهيكل...', 'جاري إعداد قالب التقرير وتجهيز البيانات اللازمة من الواجهة...');
@@ -9536,7 +9588,9 @@ try {
     if (text) document.getElementById('pdfProgressText').textContent = text;
     if (detail !== undefined) {
       const detEl = document.getElementById('pdfProgressDetails');
-      if (detEl) detEl.textContent = detail;
+      if (detEl) {
+        detEl.textContent = detail;
+      }
     }
   }
   function completePdfProgress(success, text, detail) {
@@ -9597,6 +9651,8 @@ try {
     } catch (e) { }
   }
 
+
+
   // Poll for changes (lightweight) so logout/login reflect immediately
   setInterval(update, 400);
 
@@ -9632,3 +9688,1081 @@ function updateWelcomeClock() {
 }
 setInterval(updateWelcomeClock, 1000);
 updateWelcomeClock();
+
+// ==========================================================================
+// DYNAMIC FLOATING MUSIC PLAYER INITIALIZATION & LOGIC
+// ==========================================================================
+(function() {
+  const defaultOfficialTracks = [];
+
+  let officialTracks = [...defaultOfficialTracks];
+
+  // Listen to Firebase database for shared official playlist
+  if (typeof db !== "undefined") {
+    db.ref("music/official_playlist").on("value", (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        if (Array.isArray(data)) {
+          officialTracks = data.filter(Boolean);
+        } else if (typeof data === "object") {
+          officialTracks = Object.values(data).filter(Boolean);
+        }
+      } else {
+        officialTracks = [...defaultOfficialTracks];
+      }
+      
+      // Safeguard indices and update UI in real-time
+      if (activePlaylist === "official" && currentTrackIndex >= officialTracks.length) {
+        currentTrackIndex = Math.max(0, officialTracks.length - 1);
+        localStorage.setItem("music_last_track_index", currentTrackIndex);
+      }
+      if (typeof renderPlaylist === "function") {
+        renderPlaylist();
+      }
+    });
+  }
+
+  const defaultPrivateTracks = [
+    { id: 101, title: "غريبة", type: "youtube", youtubeId: "p2i7s15D1k4" },
+    { id: 102, title: "Audio Waves", type: "youtube", youtubeId: "5qap5aO4i9A" },
+    { id: 103, title: "Sighit Shalks", type: "mp3", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" }
+  ];
+
+  let privateTracks = JSON.parse(localStorage.getItem("music_playlist")) || defaultPrivateTracks;
+  let likedTracks = JSON.parse(localStorage.getItem("music_liked_tracks")) || {};
+  let dislikedTracks = JSON.parse(localStorage.getItem("music_disliked_tracks")) || {};
+  let activePlaylist = localStorage.getItem("music_active_playlist") || "official"; // "official" or "private"
+  let currentTrackIndex = parseInt(localStorage.getItem("music_last_track_index")) || 0;
+  let visibleTab = activePlaylist; // active visible playlist tab
+
+  // Ensure index is within range
+  const currentPlaylistTracks = activePlaylist === "official" ? officialTracks : privateTracks;
+  if (currentTrackIndex >= currentPlaylistTracks.length || currentTrackIndex < 0) {
+    currentTrackIndex = 0;
+  }
+  
+  let isPlaying = false;
+  let isMuted = false;
+  let savedVolume = parseInt(localStorage.getItem("music_volume")) || 80;
+
+  // DOM Elements
+  let widget, audioPlayer;
+  let btnPlay, btnPrev, btnNext, btnMute, btnToggleView, btnClose, btnMaximize;
+  let miniPlay, miniPrev, miniNext, miniExpand;
+  let progressRange, timeCurrent, timeTotal;
+  let volumeSlider, trackTitle, trackBadge, playlistList, activeTrackName;
+  let miniTrackTitle;
+  let inputTitle, inputUrl, btnAddTrack;
+  let vinylDisc;
+
+  function init() {
+    widget = document.getElementById("music-player-widget");
+    audioPlayer = document.getElementById("music-audio-player");
+
+    // Controls Expanded
+    btnPlay = document.getElementById("music-btn-play");
+    btnPrev = document.getElementById("music-btn-prev");
+    btnNext = document.getElementById("music-btn-next");
+    btnMute = document.getElementById("music-btn-mute");
+    btnToggleView = document.getElementById("music-btn-toggle-view");
+    btnMaximize = document.getElementById("music-btn-maximize");
+    btnClose = document.getElementById("music-btn-close-widget");
+
+    // Controls Minimized (Mobile mini bar)
+    miniPlay = document.getElementById("music-mini-btn-play");
+    miniPrev = document.getElementById("music-mini-btn-prev");
+    miniNext = document.getElementById("music-mini-btn-next");
+    miniExpand = document.getElementById("music-mini-btn-expand");
+
+    // Display Elements
+    progressRange = document.getElementById("music-progress-bar");
+    timeCurrent = document.getElementById("music-time-current");
+    timeTotal = document.getElementById("music-time-total");
+    volumeSlider = document.getElementById("music-volume-slider");
+    trackTitle = document.getElementById("music-current-title");
+    trackBadge = document.getElementById("music-current-type");
+    playlistList = document.getElementById("music-playlist-list");
+    activeTrackName = document.getElementById("music-active-track-name");
+    miniTrackTitle = document.getElementById("music-mini-track-title");
+    vinylDisc = document.getElementById("music-vinyl");
+
+    // Inputs
+    inputTitle = document.getElementById("music-input-title");
+    inputUrl = document.getElementById("music-input-url");
+    btnAddTrack = document.getElementById("music-btn-add-track");
+
+    if (!widget) return;
+
+    // Attach Event Listeners
+    btnPlay.onclick = togglePlay;
+    miniPlay.onclick = togglePlay;
+    btnPrev.onclick = playPrevTrack;
+    miniPrev.onclick = playPrevTrack;
+    btnNext.onclick = playNextTrack;
+    miniNext.onclick = playNextTrack;
+
+    btnMute.onclick = toggleMute;
+    btnToggleView.onclick = toggleWidgetView;
+    if (btnMaximize) btnMaximize.onclick = expandWidgetView;
+    miniExpand.onclick = expandWidgetView;
+    
+    btnClose.onclick = closeWidget;
+
+    // Sidebar button listener
+    const sidebarBtn = document.getElementById("sidebarMusicBtn");
+    if (sidebarBtn) {
+      sidebarBtn.onclick = function() {
+        // Close sidebar
+        const sidebarMenu = document.getElementById("sidebarMenu");
+        if (sidebarMenu && sidebarMenu.classList.contains("open")) {
+          sidebarMenu.classList.remove("open");
+          const sidebarToggleBtn = document.getElementById("sidebarToggleBtn");
+          const sidebarCloseBtn = document.getElementById("sidebarCloseBtn");
+          if (sidebarToggleBtn) sidebarToggleBtn.style.display = "flex";
+          if (sidebarCloseBtn) sidebarCloseBtn.style.display = "none";
+        }
+        openWidget();
+      };
+    }
+
+    // Volume Slider
+    volumeSlider.value = savedVolume;
+    volumeSlider.oninput = function() {
+      setVolume(parseInt(this.value));
+    };
+
+    // Seek bar tracking
+    progressRange.oninput = function() {
+      seekTo(parseFloat(this.value));
+    };
+
+    // Tabs click handlers
+    const tabOfficial = document.getElementById("music-tab-official");
+    const tabPrivate = document.getElementById("music-tab-private");
+    if (tabOfficial && tabPrivate) {
+      tabOfficial.onclick = () => {
+        visibleTab = "official";
+        updateTabsUI();
+        renderPlaylist();
+      };
+      tabPrivate.onclick = () => {
+        visibleTab = "private";
+        updateTabsUI();
+        renderPlaylist();
+      };
+    }
+
+    // Add track event
+    btnAddTrack.onclick = addNewTrack;
+
+    // HTML5 Audio events
+    audioPlayer.addEventListener('timeupdate', updateProgress);
+    audioPlayer.addEventListener('loadedmetadata', onAudioLoaded);
+    audioPlayer.addEventListener('ended', playNextTrack);
+
+    // Initial render
+    updateTabsUI();
+    renderPlaylist();
+    loadTrack(activePlaylist, currentTrackIndex, false);
+
+    // Set initial volume on HTML5 audio
+    audioPlayer.volume = savedVolume / 100;
+
+    // Initialize progress timer
+    setInterval(updateProgress, 500);
+
+    // Make player draggable
+    makeWidgetDraggable();
+  }
+
+  // Draggable logic for music player on Desktop
+  function makeWidgetDraggable() {
+    const header = widget.querySelector(".music-header");
+    if (!header) return;
+
+    let isDragging = false;
+    let startX, startY;
+    let initialX, initialY;
+
+    header.style.cursor = "move";
+
+    header.addEventListener("mousedown", (e) => {
+      // Prevent drag if click is on buttons or visualizer bars
+      if (e.target.closest("button") || e.target.closest("span.music-window-dots") || e.target.closest(".music-visualizer-bars")) return;
+      
+      // Only drag if expanded and not mobile
+      if (window.innerWidth <= 600 || widget.classList.contains("minimized")) return;
+
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+
+      const rect = widget.getBoundingClientRect();
+      initialX = rect.left;
+      initialY = rect.top;
+
+      widget.style.top = initialY + "px";
+      widget.style.left = initialX + "px";
+      widget.style.bottom = "auto";
+      widget.style.transform = "none";
+      widget.style.margin = "0";
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+      
+      e.preventDefault();
+    });
+
+    function onMouseMove(e) {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      
+      let newX = initialX + dx;
+      let newY = initialY + dy;
+      
+      const rect = widget.getBoundingClientRect();
+      const maxX = window.innerWidth - rect.width;
+      const maxY = window.innerHeight - rect.height;
+      
+      newX = Math.max(0, Math.min(newX, maxX));
+      newY = Math.max(0, Math.min(newY, maxY));
+      
+      widget.style.left = newX + "px";
+      widget.style.top = newY + "px";
+    }
+
+    function onMouseUp() {
+      isDragging = false;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    }
+  }
+
+  // Load YouTube script dynamically
+  if (!window.YT) {
+    let tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    let firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+  }
+
+  // Define player ready hook
+  window.onYouTubeIframeAPIReady = function() {
+    initYouTubePlayer();
+  };
+
+  // Fallback in case YouTube loaded earlier
+  if (window.YT && window.YT.Player) {
+    initYouTubePlayer();
+  }
+
+  let ytPlayer = null;
+  let ytPlayerReady = false;
+
+  function initYouTubePlayer() {
+    if (ytPlayer) return;
+    try {
+      ytPlayer = new YT.Player('youtube-iframe-placeholder', {
+        height: '200',
+        width: '200',
+        videoId: '',
+        playerVars: {
+          'autoplay': 0,
+          'controls': 0,
+          'disablekb': 1,
+          'fs': 0,
+          'rel': 0,
+          'showinfo': 0,
+          'modestbranding': 1,
+          'playsinline': 1
+        },
+        events: {
+          'onReady': function() {
+            ytPlayerReady = true;
+            // set initial volume
+            ytPlayer.setVolume(savedVolume);
+          },
+          'onStateChange': function(event) {
+            if (event.data === YT.PlayerState.ENDED) {
+              playNextTrack();
+            }
+          },
+          'onError': function(event) {
+            console.warn("YouTube Player API Error code:", event.data);
+            const list = activePlaylist === "official" ? officialTracks : privateTracks;
+            const track = list[currentTrackIndex];
+            let errorMsg = "يرجى التحقق من الرابط أو القيود الجغرافية.";
+            let actionBtnHtml = "";
+            
+            if (event.data === 150 || event.data === 101) {
+              errorMsg = "صاحب الفيديو منع تشغيله بالمواقع الخارجية.";
+              if (track && track.youtubeId) {
+                const ytUrl = `https://www.youtube.com/watch?v=${track.youtubeId}`;
+                actionBtnHtml = `<br><a href="${ytUrl}" target="_blank" style="color: #6366f1; font-weight: bold; text-decoration: underline; display: inline-block; margin-top: 6px;">شاهده مباشرة على يوتيوب ↗️</a>`;
+              }
+            } else if (event.data === 2) {
+              errorMsg = "معرف الفيديو غير صالح (خطأ بالرابط).";
+            }
+            
+            if (typeof window.showToast === "function") {
+              window.showToast("خطأ في تشغيل يوتيوب ⚠️", errorMsg + actionBtnHtml, "warning", 6000);
+            } else {
+              showToast("خطأ في يوتيوب", errorMsg, "error");
+            }
+            
+            isPlaying = false;
+            updatePlayUI();
+          }
+        }
+      });
+    } catch (e) {
+      console.error("YouTube init error:", e);
+    }
+  }
+
+  // Update Tabs UI
+  function updateTabsUI() {
+    const tabOfficial = document.getElementById("music-tab-official");
+    const tabPrivate = document.getElementById("music-tab-private");
+    const addForm = document.querySelector(".music-add-form");
+    
+    const isAdmin = (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin');
+    
+    if (visibleTab === "official") {
+      if (tabOfficial) tabOfficial.classList.add("active");
+      if (tabPrivate) tabPrivate.classList.remove("active");
+      if (addForm) {
+        addForm.style.display = isAdmin ? "flex" : "none";
+      }
+    } else {
+      if (tabOfficial) tabOfficial.classList.remove("active");
+      if (tabPrivate) tabPrivate.classList.add("active");
+      if (addForm) {
+        addForm.style.display = "flex";
+      }
+    }
+  }
+
+  // Load a track
+  function loadTrack(playlistName, index, autoplay = true) {
+    const list = playlistName === "official" ? officialTracks : privateTracks;
+
+    if (list.length === 0) {
+      trackTitle.textContent = "قائمة التشغيل فارغة";
+      miniTrackTitle.textContent = "لا يوجد تراك";
+      activeTrackName.textContent = "لا يوجد تراك";
+      return;
+    }
+
+    activePlaylist = playlistName;
+    currentTrackIndex = index;
+    localStorage.setItem("music_active_playlist", activePlaylist);
+    localStorage.setItem("music_last_track_index", currentTrackIndex);
+
+    const track = list[currentTrackIndex];
+    trackTitle.textContent = track.title;
+    miniTrackTitle.textContent = track.title;
+    activeTrackName.textContent = track.title;
+    trackBadge.textContent = track.type.toUpperCase();
+
+    // Update vinyl center text
+    const vinylTitle = document.getElementById("music-vinyl-title");
+    const vinylSource = document.getElementById("music-vinyl-source");
+    if (vinylTitle) vinylTitle.textContent = track.title;
+    if (vinylSource) vinylSource.textContent = track.type === "youtube" ? "YOUTUBE" : "MP3";
+
+    // Highlight active in list
+    const items = playlistList.querySelectorAll(".music-track-item");
+    items.forEach((item, idx) => {
+      if (activePlaylist === visibleTab && idx === currentTrackIndex) {
+        item.classList.add("active");
+        item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } else {
+        item.classList.remove("active");
+      }
+    });
+
+    // Reset progress
+    progressRange.value = 0;
+    timeCurrent.textContent = "00:00";
+    timeTotal.textContent = "00:00";
+
+    // Pause both first
+    audioPlayer.pause();
+    if (ytPlayer && ytPlayerReady && typeof ytPlayer.pauseVideo === 'function') {
+      try { ytPlayer.pauseVideo(); } catch(e){}
+    }
+
+    if (track.type === "mp3") {
+      audioPlayer.src = track.url;
+      audioPlayer.load();
+      if (autoplay) {
+        audioPlayer.play().then(() => {
+          isPlaying = true;
+          updatePlayUI();
+        }).catch(err => {
+          console.warn("Autoplay block or loading error:", err);
+          isPlaying = false;
+          updatePlayUI();
+        });
+      } else {
+        isPlaying = false;
+        updatePlayUI();
+      }
+    } else if (track.type === "youtube") {
+      if (ytPlayer && ytPlayerReady) {
+        if (autoplay) {
+          try {
+            ytPlayer.loadVideoById(track.youtubeId);
+            ytPlayer.setVolume(savedVolume);
+            isPlaying = true;
+            updatePlayUI();
+          } catch(e) {
+            console.error("Error loading YT video:", e);
+          }
+        } else {
+          try {
+            ytPlayer.cueVideoById(track.youtubeId);
+          } catch(e){}
+          isPlaying = false;
+          updatePlayUI();
+        }
+      } else {
+        // If YT API not ready yet, retry in 800ms
+        setTimeout(() => loadTrack(playlistName, index, autoplay), 800);
+      }
+    }
+  }
+
+  // Play / Pause Toggle
+  function togglePlay() {
+    const list = activePlaylist === "official" ? officialTracks : privateTracks;
+    if (list.length === 0) return;
+    const track = list[currentTrackIndex];
+
+    if (isPlaying) {
+      // Pause
+      if (track.type === "mp3") {
+        audioPlayer.pause();
+      } else if (track.type === "youtube" && ytPlayer && ytPlayerReady && typeof ytPlayer.pauseVideo === 'function') {
+        try { ytPlayer.pauseVideo(); } catch(e){}
+      }
+      isPlaying = false;
+    } else {
+      // Play
+      if (track.type === "mp3") {
+        audioPlayer.play().catch(e => {
+          showToast("خطأ في تشغيل الصوت", "الملف غير متوفر أو الرابط غير صالح", "error");
+        });
+      } else if (track.type === "youtube" && ytPlayer && ytPlayerReady && typeof ytPlayer.playVideo === 'function') {
+        try { ytPlayer.playVideo(); } catch(e){}
+      }
+      isPlaying = true;
+    }
+    updatePlayUI();
+  }
+
+  // Update Play/Pause UI Button icon & animation class
+  function updatePlayUI() {
+    const playIcon = isPlaying ? "⏸" : "▶";
+    btnPlay.textContent = playIcon;
+    miniPlay.textContent = playIcon;
+
+    if (isPlaying) {
+      widget.classList.add("playing");
+    } else {
+      widget.classList.remove("playing");
+    }
+  }
+
+  // Next Track
+  function playNextTrack() {
+    const list = activePlaylist === "official" ? officialTracks : privateTracks;
+    if (list.length === 0) return;
+    let nextIndex = currentTrackIndex + 1;
+    if (nextIndex >= list.length) nextIndex = 0;
+    loadTrack(activePlaylist, nextIndex, true);
+  }
+
+  // Previous Track
+  function playPrevTrack() {
+    const list = activePlaylist === "official" ? officialTracks : privateTracks;
+    if (list.length === 0) return;
+    let prevIndex = currentTrackIndex - 1;
+    if (prevIndex < 0) prevIndex = list.length - 1;
+    loadTrack(activePlaylist, prevIndex, true);
+  }
+
+  // Volume Settings
+  function setVolume(val) {
+    savedVolume = val;
+    localStorage.setItem("music_volume", savedVolume);
+    volumeSlider.value = savedVolume;
+
+    // Apply to html5 audio
+    audioPlayer.volume = savedVolume / 100;
+
+    // Apply to YT
+    if (ytPlayer && ytPlayerReady && typeof ytPlayer.setVolume === 'function') {
+      try { ytPlayer.setVolume(savedVolume); } catch(e){}
+    }
+
+    // Update mute icon
+    if (savedVolume === 0) {
+      btnMute.textContent = "🔇";
+      isMuted = true;
+    } else {
+      btnMute.textContent = savedVolume < 40 ? "🔈" : "🔊";
+      isMuted = false;
+    }
+  }
+
+  // Mute / Unmute Toggle
+  function toggleMute() {
+    if (isMuted) {
+      setVolume(savedVolume === 0 ? 50 : savedVolume);
+      audioPlayer.muted = false;
+      if (ytPlayer && ytPlayerReady && typeof ytPlayer.unMute === 'function') {
+        try { ytPlayer.unMute(); } catch(e){}
+      }
+      btnMute.textContent = "🔊";
+      isMuted = false;
+    } else {
+      audioPlayer.muted = true;
+      if (ytPlayer && ytPlayerReady && typeof ytPlayer.mute === 'function') {
+        try { ytPlayer.mute(); } catch(e){}
+      }
+      btnMute.textContent = "🔇";
+      isMuted = true;
+    }
+  }
+
+  // Seeking/Progress management
+  function seekTo(percent) {
+    const list = activePlaylist === "official" ? officialTracks : privateTracks;
+    if (list.length === 0) return;
+    const track = list[currentTrackIndex];
+
+    if (track.type === "mp3") {
+      if (audioPlayer.duration) {
+        audioPlayer.currentTime = (percent / 100) * audioPlayer.duration;
+      }
+    } else if (track.type === "youtube" && ytPlayer && ytPlayerReady) {
+      try {
+        const duration = ytPlayer.getDuration();
+        if (duration) {
+          ytPlayer.seekTo((percent / 100) * duration, true);
+        }
+      } catch(e){}
+    }
+  }
+
+  // Format seconds to MM:SS
+  function formatTime(seconds) {
+    if (isNaN(seconds) || seconds === undefined) return "00:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+
+  // HTML5 audio loaded metadata
+  function onAudioLoaded() {
+    timeTotal.textContent = formatTime(audioPlayer.duration);
+  }
+
+  // Progress Update
+  function updateProgress() {
+    const list = activePlaylist === "official" ? officialTracks : privateTracks;
+    if (list.length === 0 || !isPlaying) return;
+    const track = list[currentTrackIndex];
+
+    let current = 0;
+    let total = 0;
+
+    if (track.type === "mp3") {
+      current = audioPlayer.currentTime;
+      total = audioPlayer.duration || 0;
+    } else if (track.type === "youtube" && ytPlayer && ytPlayerReady && typeof ytPlayer.getCurrentTime === 'function') {
+      try {
+        current = ytPlayer.getCurrentTime();
+        total = ytPlayer.getDuration() || 0;
+      } catch(e){}
+    }
+
+    if (total > 0) {
+      const percentage = (current / total) * 100;
+      // Update seek range only if not currently user searching/dragging
+      if (document.activeElement !== progressRange) {
+        progressRange.value = percentage;
+      }
+      timeCurrent.textContent = formatTime(current);
+      timeTotal.textContent = formatTime(total);
+    }
+  }
+
+  // Get track thumbnail
+  function getTrackThumbnail(track) {
+    if (track.type === "youtube" && track.youtubeId) {
+      return `https://img.youtube.com/vi/${track.youtubeId}/default.jpg`;
+    }
+    return `data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzFlMjkzYiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjQwIiBmaWxsPSIjMGYxNzJhIi8+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iMzAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzMzNDE1NSIgc3Ryb2tlLXdpZHRoPSIyIi8+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iMjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzQ3NTU2OSIgc3Ryb2tlLXdpZHRoPSIyIi8+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iMTAiIGZpbGw9IiM2MzY2ZjEiLz48L3N2Zz4=`;
+  }
+
+  // Toggle Like/Dislike state
+  function toggleLike(trackId) {
+    if (likedTracks[trackId]) {
+      delete likedTracks[trackId];
+    } else {
+      likedTracks[trackId] = true;
+      delete dislikedTracks[trackId];
+    }
+    localStorage.setItem("music_liked_tracks", JSON.stringify(likedTracks));
+    renderPlaylist();
+  }
+
+  function toggleDislike(trackId) {
+    if (dislikedTracks[trackId]) {
+      delete dislikedTracks[trackId];
+    } else {
+      dislikedTracks[trackId] = true;
+      delete likedTracks[trackId];
+    }
+    localStorage.setItem("music_disliked_tracks", JSON.stringify(dislikedTracks));
+    renderPlaylist();
+  }
+
+  // Render list of playlist items
+  function renderPlaylist() {
+    playlistList.innerHTML = "";
+    const listToRender = visibleTab === "official" ? officialTracks : privateTracks;
+    const isAdmin = (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin');
+
+    if (listToRender.length === 0) {
+      playlistList.innerHTML = `<div style="text-align:center; padding:12px; font-size:12px; color:var(--music-text-dim);">لا توجد أغاني في هذه القائمة!</div>`;
+      return;
+    }
+
+    const canEdit = (visibleTab === "private" || (visibleTab === "official" && isAdmin));
+
+    listToRender.forEach((track, index) => {
+      const item = document.createElement("div");
+      item.className = "music-track-item";
+      
+      // Cascade stagger animation delay
+      item.style.animationDelay = `${index * 35}ms`;
+      
+      // If it is currently playing and the visible tab matches the active playing playlist
+      if (activePlaylist === visibleTab && index === currentTrackIndex) {
+        item.classList.add("active");
+      }
+
+      item.onclick = function(e) {
+        // Prevent trigger if they click action buttons
+        if (e.target.closest('.music-track-action-btn') || e.target.closest('.music-track-edit-btn') || e.target.closest('.music-track-delete-btn')) return;
+        loadTrack(visibleTab, index, true);
+      };
+
+      const sourceLabel = track.type === "youtube" ? "يوتيوب 📺" : "ملف مباشر 🎵";
+      const thumbUrl = getTrackThumbnail(track);
+      const trackId = track.id || (visibleTab + "_" + index);
+      const isLiked = !!likedTracks[trackId];
+      const isDisliked = !!dislikedTracks[trackId];
+
+      if (canEdit) {
+        item.innerHTML = `
+          <img class="music-track-thumb" src="${thumbUrl}" alt="Cover" />
+          <button class="music-track-action-btn music-track-like-btn ${isLiked ? 'active' : ''}" title="أعجبني">👍</button>
+          <div class="music-track-item-info">
+            <div class="music-track-item-title">${track.title}</div>
+            <div class="music-track-item-subtitle">${sourceLabel}</div>
+          </div>
+          <div class="music-track-item-actions">
+            <button class="music-track-edit-btn" title="تعديل الاسم">✏️</button>
+            <button class="music-track-delete-btn" title="حذف">❌</button>
+          </div>
+        `;
+
+        // Wire like button
+        item.querySelector(".music-track-like-btn").onclick = function(e) {
+          e.stopPropagation();
+          toggleLike(trackId);
+        };
+
+        // Wire edit button
+        item.querySelector(".music-track-edit-btn").onclick = function(e) {
+          e.stopPropagation();
+          editTrack(index);
+        };
+
+        // Wire delete button
+        item.querySelector(".music-track-delete-btn").onclick = function(e) {
+          e.stopPropagation();
+          deleteTrack(index);
+        };
+      } else {
+        item.innerHTML = `
+          <img class="music-track-thumb" src="${thumbUrl}" alt="Cover" />
+          <button class="music-track-action-btn music-track-like-btn ${isLiked ? 'active' : ''}" title="أعجبني">👍</button>
+          <div class="music-track-item-info">
+            <div class="music-track-item-title">${track.title}</div>
+            <div class="music-track-item-subtitle">${sourceLabel}</div>
+          </div>
+        `;
+
+        // Wire like button
+        item.querySelector(".music-track-like-btn").onclick = function(e) {
+          e.stopPropagation();
+          toggleLike(trackId);
+        };
+      }
+
+      playlistList.appendChild(item);
+    });
+  }
+
+  // Custom dialog helper for Music Player
+  function showMusicModal({ title, message, defaultValue, hasInput, confirmText, isDanger, onConfirm }) {
+    const modal = document.getElementById("music-custom-modal");
+    if (!modal) return;
+
+    const mTitle = document.getElementById("music-modal-title");
+    const mMsg = document.getElementById("music-modal-message");
+    const mInput = document.getElementById("music-modal-input");
+    const btnConfirm = document.getElementById("music-modal-btn-confirm");
+    const btnCancel = document.getElementById("music-modal-btn-cancel");
+    const btnClose = document.getElementById("music-modal-close");
+
+    mTitle.textContent = title || "";
+    mMsg.textContent = message || "";
+
+    if (hasInput) {
+      mInput.style.display = "block";
+      mInput.value = defaultValue || "";
+      setTimeout(() => mInput.focus(), 150);
+    } else {
+      mInput.style.display = "none";
+    }
+
+    btnConfirm.textContent = confirmText || "موافق";
+    if (isDanger) {
+      btnConfirm.className = "music-modal-btn btn-danger";
+    } else {
+      btnConfirm.className = "music-modal-btn btn-confirm";
+    }
+
+    const closeModal = () => {
+      modal.classList.add("closed");
+      modal.classList.remove("open");
+      btnConfirm.onclick = null;
+      btnCancel.onclick = null;
+      btnClose.onclick = null;
+      document.removeEventListener("keydown", handleKeydown);
+    };
+
+    const handleKeydown = (e) => {
+      if (e.key === "Escape") {
+        closeModal();
+      } else if (e.key === "Enter") {
+        btnConfirm.click();
+      }
+    };
+
+    btnConfirm.onclick = () => {
+      if (hasInput) {
+        const val = mInput.value.trim();
+        if (onConfirm) onConfirm(val);
+      } else {
+        if (onConfirm) onConfirm();
+      }
+      closeModal();
+    };
+
+    btnCancel.onclick = closeModal;
+    btnClose.onclick = closeModal;
+    document.addEventListener("keydown", handleKeydown);
+
+    modal.classList.remove("closed");
+    modal.classList.add("open");
+  }
+
+  // Edit track title
+  function editTrack(index) {
+    const isAdmin = (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin');
+    const isOfficial = (visibleTab === "official");
+    
+    if (isOfficial && !isAdmin) {
+      showToast("غير مسموح", "أنت لست المدير للقيام بذلك", "error");
+      return;
+    }
+
+    const list = isOfficial ? officialTracks : privateTracks;
+    const track = list[index];
+    
+    showMusicModal({
+      title: isOfficial ? "تعديل اسم الأغنية الرسمية" : "تعديل اسم الأغنية",
+      message: "أدخل الاسم الجديد للأغنية أو المقطع الصوتي:",
+      defaultValue: track.title,
+      hasInput: true,
+      confirmText: "تعديل الاسم ✏️",
+      isDanger: false,
+      onConfirm: (newTitle) => {
+        if (!newTitle) {
+          showToast("خطأ في التعديل", "اسم الأغنية لا يمكن أن يكون فارغاً", "error");
+          return;
+        }
+        track.title = newTitle;
+        
+        if (isOfficial) {
+          if (typeof db !== "undefined") {
+            db.ref("music/official_playlist").set(officialTracks);
+          }
+        } else {
+          localStorage.setItem("music_playlist", JSON.stringify(privateTracks));
+        }
+        
+        renderPlaylist();
+        
+        // Update active displays if it is the current track and active playlist matches visible tab
+        if (activePlaylist === visibleTab && index === currentTrackIndex) {
+          trackTitle.textContent = newTitle;
+          miniTrackTitle.textContent = newTitle;
+          activeTrackName.textContent = newTitle;
+        }
+        showToast("ركن الترفيه", "تم تعديل اسم الأغنية بنجاح", "success");
+      }
+    });
+  }
+
+  // Add a new track to playlist
+  function addNewTrack() {
+    const title = inputTitle.value.trim();
+    const url = inputUrl.value.trim();
+
+    if (!title || !url) {
+      showToast("خطأ في الإضافة", "يرجى تعبئة جميع الحقول", "error");
+      return;
+    }
+
+    const isAdmin = (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin');
+    const isOfficial = (visibleTab === "official");
+    
+    if (isOfficial && !isAdmin) {
+      showToast("غير مسموح", "أنت لست المدير للقيام بذلك", "error");
+      return;
+    }
+
+    let type = "mp3";
+    let youtubeId = "";
+
+    // Regex check for YouTube
+    const ytId = getYouTubeId(url);
+    if (ytId) {
+      type = "youtube";
+      youtubeId = ytId;
+    }
+
+    const newTrack = {
+      id: Date.now(),
+      title: title,
+      type: type,
+      url: url,
+      youtubeId: youtubeId
+    };
+
+    if (isOfficial) {
+      officialTracks.push(newTrack);
+      if (typeof db !== "undefined") {
+        db.ref("music/official_playlist").set(officialTracks);
+      }
+      showToast("ركن الترفيه", "تمت إضافة الأغنية للموقع بنجاح", "success");
+    } else {
+      privateTracks.push(newTrack);
+      localStorage.setItem("music_playlist", JSON.stringify(privateTracks));
+      showToast("ركن الترفيه", "تمت إضافة التراك بنجاح لموسيقاك الخاصة", "success");
+    }
+
+    // Reset inputs
+    inputTitle.value = "";
+    inputUrl.value = "";
+
+    // If it's the first track and matches active playlist, play it
+    const list = isOfficial ? officialTracks : privateTracks;
+    if (list.length === 1 && activePlaylist === visibleTab) {
+      loadTrack(visibleTab, 0, true);
+    }
+  }
+
+  // Helper to extract YT ID (Robust parser for all formats)
+  function getYouTubeId(url) {
+    url = url.trim();
+    
+    // Check if it's already a bare 11-char ID
+    if (/^[a-zA-Z0-9_-]{11}$/.test(url)) {
+      return url;
+    }
+    
+    try {
+      // Handle youtu.be/ID
+      if (url.includes("youtu.be/")) {
+        const parts = url.split("youtu.be/");
+        if (parts[1]) {
+          const id = parts[1].split(/[?#&]/)[0];
+          if (id.length === 11) return id;
+        }
+      }
+      
+      // Handle shorts/ID, embed/ID, v/ID
+      const pathPatterns = [/\/shorts\/([a-zA-Z0-9_-]{11})/, /\/embed\/([a-zA-Z0-9_-]{11})/, /\/v\/([a-zA-Z0-9_-]{11})/];
+      for (let pattern of pathPatterns) {
+        const match = url.match(pattern);
+        if (match && match[1]) return match[1];
+      }
+      
+      // Handle watch?v=ID
+      if (url.includes("watch") || url.includes("?v=")) {
+        const urlObj = new URL(url);
+        if (urlObj.searchParams.has("v")) {
+          const id = urlObj.searchParams.get("v");
+          if (id && id.length === 11) return id;
+        }
+      }
+    } catch (e) {
+      console.warn("YouTube URL parsing error, falling back to regex:", e);
+    }
+
+    // Fallback regex
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    if (match && match[2] && match[2].length === 11) {
+      return match[2];
+    }
+    return null;
+  }
+
+  // Delete track
+  function deleteTrack(index) {
+    const isAdmin = (typeof currentUserRole !== 'undefined' && currentUserRole === 'admin');
+    const isOfficial = (visibleTab === "official");
+    
+    if (isOfficial && !isAdmin) {
+      showToast("غير مسموح", "أنت لست المدير للقيام بذلك", "error");
+      return;
+    }
+
+    const list = isOfficial ? officialTracks : privateTracks;
+    const track = list[index];
+    
+    showMusicModal({
+      title: isOfficial ? "حذف أغنية الموقع الرسمية" : "حذف تراك",
+      message: `هل أنت متأكد من رغبتك في حذف "${track.title}" من القائمة؟`,
+      hasInput: false,
+      confirmText: "حذف 🗑️",
+      isDanger: true,
+      onConfirm: () => {
+        const isDeletingCurrent = (activePlaylist === visibleTab && index === currentTrackIndex);
+        list.splice(index, 1);
+
+        if (isOfficial) {
+          if (typeof db !== "undefined") {
+            db.ref("music/official_playlist").set(officialTracks);
+          }
+        } else {
+          localStorage.setItem("music_playlist", JSON.stringify(privateTracks));
+        }
+
+        if (list.length === 0 && activePlaylist === visibleTab) {
+          // No tracks left, pause and fallback
+          audioPlayer.pause();
+          audioPlayer.src = "";
+          if (ytPlayer && ytPlayerReady && typeof ytPlayer.pauseVideo === 'function') {
+            try { ytPlayer.pauseVideo(); } catch(e){}
+          }
+          isPlaying = false;
+          updatePlayUI();
+          
+          if (isOfficial) {
+            // If official is empty, fallback to private list
+            activePlaylist = "private";
+            currentTrackIndex = 0;
+            loadTrack("private", 0, false);
+          } else {
+            // If private is empty, fallback to official list
+            activePlaylist = "official";
+            currentTrackIndex = 0;
+            loadTrack("official", 0, false);
+          }
+        } else if (isDeletingCurrent) {
+          currentTrackIndex = 0;
+          loadTrack(visibleTab, currentTrackIndex, isPlaying);
+        } else if (activePlaylist === visibleTab && index < currentTrackIndex) {
+          currentTrackIndex--;
+          localStorage.setItem("music_last_track_index", currentTrackIndex);
+        }
+
+        renderPlaylist();
+        showToast("ركن الترفيه", "تم حذف الأغنية بنجاح", "info");
+      }
+    });
+  }
+
+  // Visibility Controls
+  function openWidget() {
+    widget.classList.remove("closed");
+    
+    // Clear drag inline styles so it centers by default on open
+    widget.style.top = "";
+    widget.style.left = "";
+    widget.style.transform = "";
+    widget.style.bottom = "";
+    widget.style.margin = "";
+    
+    // Open in expanded (full) mode by default on all screens
+    widget.classList.add("expanded");
+    widget.classList.remove("minimized");
+    
+    localStorage.setItem("music_widget_state", "open");
+  }
+
+  function closeWidget() {
+    widget.classList.add("closed");
+    widget.classList.remove("expanded", "minimized");
+    localStorage.setItem("music_widget_state", "closed");
+  }
+
+  function toggleWidgetView() {
+    if (widget.classList.contains("expanded")) {
+      widget.classList.remove("expanded");
+      widget.classList.add("minimized");
+    } else {
+      widget.classList.remove("minimized");
+      widget.classList.add("expanded");
+      
+      // Clear drag inline styles so it centers by default
+      widget.style.top = "";
+      widget.style.left = "";
+      widget.style.transform = "";
+      widget.style.bottom = "";
+      widget.style.margin = "";
+    }
+  }
+
+  function expandWidgetView() {
+    widget.classList.remove("minimized");
+    widget.classList.add("expanded");
+    
+    // Clear drag inline styles so it centers by default
+    widget.style.top = "";
+    widget.style.left = "";
+    widget.style.transform = "";
+    widget.style.bottom = "";
+    widget.style.margin = "";
+  }
+
+  // Document Ready Initialization
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();

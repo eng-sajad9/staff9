@@ -1147,6 +1147,10 @@
     <button id="sidebarMonthsManagerBtn" class="sidebar-btn sidebar-btn-months">
       📅 إدارة الأشهر
     </button>
+    <!-- زر ركن الترفيه أسفل إدارة الأشهر -->
+    <button id="sidebarMusicBtn" class="sidebar-btn sidebar-btn-music">
+      🎵 ركن الاغاني
+    </button>
     <button id="sidebarEmpStatsBtn" class="sidebar-btn sidebar-btn-stats">
       📊 إحصائيات الموظفين
     </button>
@@ -1483,13 +1487,17 @@
           <div style="border-top:1px solid #eee;margin-top:14px;padding-top:14px;text-align:center;">
             <div style="font-size:13px;margin-bottom:6px;color:#333;font-weight:700;">موسيقى المطور (30 ثانية)</div>
             <input id="aboutEditAudioFile" type="file" accept="audio/mpeg,audio/mp3" style="display:none;" />
-            <button id="aboutEditAudioFileBtn" type="button" style="background:#5c6bc0;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;margin-bottom:6px;">
+            <button id="aboutEditAudioFileBtn" type="button"
+              style="background:#5c6bc0;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;margin-bottom:6px;">
               اختر ملف صوتي (MP3)
             </button>
-            <div id="aboutEditAudioFileName" style="font-size:11px;color:#666;margin-bottom:6px;max-width:180px;margin-left:auto;margin-right:auto;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;">لا يوجد ملف صوتي محلي</div>
+            <div id="aboutEditAudioFileName"
+              style="font-size:11px;color:#666;margin-bottom:6px;max-width:180px;margin-left:auto;margin-right:auto;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;">
+              لا يوجد ملف صوتي محلي</div>
             <input id="aboutEditAudioUrl" type="text" placeholder="أو ضع رابط ملف الصوت المباشر"
               style="width:100%;padding:6px;border-radius:6px;border:1px solid #ddd;font-size:12px;box-sizing:border-box;" />
-            <div style="font-size:11px;color:#888;margin-top:6px;line-height:1.4;">الحد الأقصى للملف المحلي: 800KB. اترك الحقول فارغة لمسح الصوت.</div>
+            <div style="font-size:11px;color:#888;margin-top:6px;line-height:1.4;">الحد الأقصى للملف المحلي: 800KB. اترك
+              الحقول فارغة لمسح الصوت.</div>
           </div>
         </div>
       </div>
@@ -1510,6 +1518,162 @@
   <!-- نظام النسخ الاحتياطي عبر تيليجرام -->
   <!-- ============================================ -->
 
+
+  <!-- ============================================ -->
+  <!-- ركن الترفيه - مشغل الموسيقى العائم -->
+  <!-- ============================================ -->
+  <div id="music-player-widget" class="music-player-card closed" aria-label="مشغل الموسيقى">
+    <!-- عنصر الصوت القياسي -->
+    <audio id="music-audio-player" style="display:none;"></audio>
+    <!-- حاوية تشغيل يوتيوب المخفية -->
+    <div id="youtube-player-container"
+      style="position: fixed; left: -9999px; top: -9999px; width: 200px; height: 200px; opacity: 0.01; pointer-events: none; z-index: -100;">
+      <div id="youtube-iframe-placeholder"></div>
+    </div>
+
+    <!-- الجزء العلوي: رأس المشغل -->
+    <div class="music-header">
+      <div class="music-header-title">
+        <span class="music-title-text">🎵 ركن الترفيه</span>
+        <span id="music-active-track-name" class="music-track-scroll">لا يوجد تراك حالياً</span>
+      </div>
+      <div class="music-visualizer-bars">
+        <div class="music-bar"></div>
+        <div class="music-bar"></div>
+        <div class="music-bar"></div>
+        <div class="music-bar"></div>
+        <div class="music-bar"></div>
+      </div>
+      <div class="music-header-controls">
+        <span class="music-window-dots"
+          style="color: rgba(255, 255, 255, 0.2); font-size: 14px; letter-spacing: 2px; margin-left: 8px; display: inline-block; vertical-align: middle;">•••••</span>
+        <button id="music-btn-toggle-view" class="music-header-btn" title="تصغير">-</button>
+        <button id="music-btn-maximize" class="music-header-btn" title="تكبير">□</button>
+        <button id="music-btn-close-widget" class="music-header-btn" title="إغلاق">X</button>
+      </div>
+    </div>
+
+    <!-- تبويبات قائمة التشغيل في الجزء العلوي للمظهر الفاخر -->
+    <div class="music-playlist-tabs">
+      <button id="music-tab-official" class="music-tab-btn active">🎙️ قائمة الموقع الرسمية</button>
+      <button id="music-tab-private" class="music-tab-btn">👤 قائمتي الشخصية</button>
+    </div>
+
+    <!-- الجزء الأوسط: عرض التراك والقرص الدوار -->
+    <div class="music-body-expanded">
+      <div class="music-vinyl-wrapper">
+        <div class="music-vinyl-waves">
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+          <div class="music-vinyl-wave-bar"></div>
+        </div>
+        <div class="music-vinyl-disc" id="music-vinyl">
+          <div class="music-vinyl-center">
+            <div id="music-vinyl-title">غريبة</div>
+            <div id="music-vinyl-source">YOUTUBE</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- معلومات الأغنية ونوع المصدر -->
+      <div class="music-track-info-full">
+        <h4 id="music-current-title">اختر تراك للبدء</h4>
+        <span id="music-current-type" class="music-badge">MP3</span>
+      </div>
+
+      <!-- شريط التقدم والوقت -->
+      <div class="music-progress-wrapper">
+        <div class="music-progress-slider-row">
+          <input type="range" id="music-progress-bar" min="0" max="100" value="0" step="0.1" />
+          <button id="music-btn-mute" class="music-volume-btn" title="كتم/تفعيل الصوت">🔊</button>
+        </div>
+        <div class="music-progress-time-row">
+          <span id="music-time-current">00:00</span>
+          <span id="music-time-total">00:00</span>
+        </div>
+      </div>
+
+      <!-- أزرار التحكم الأساسية بالتشغيل -->
+      <div class="music-controls">
+        <button id="music-btn-prev" class="music-control-btn" title="السابق">⏮</button>
+        <button id="music-btn-play" class="music-control-btn main-play-btn" title="تشغيل/إيقاف">▶</button>
+        <button id="music-btn-next" class="music-control-btn" title="التالي">⏭</button>
+      </div>
+
+      <!-- التحكم بالصوت -->
+      <div class="music-volume-container" style="display: none;">
+        <input type="range" id="music-volume-slider" min="0" max="100" value="80" />
+      </div>
+
+      <!-- قائمة التشغيل وإضافة الأغاني -->
+      <div class="music-playlist-section">
+        <h5>📋 قائمة التشغيل المخصصة</h5>
+        <div id="music-playlist-list" class="music-playlist-scroll">
+          <!-- سيتم بناؤها ديناميكياً بـ JS -->
+        </div>
+
+        <!-- فورم إضافة أغنية جديدة -->
+        <div class="music-add-form">
+          <h6>➕ إضافة أغنية جديدة</h6>
+          <input type="text" id="music-input-title" placeholder="اسم الأغنية/التراك" autocomplete="off" />
+          <input type="text" id="music-input-url" placeholder="رابط مباشر MP3 أو رابط YouTube" autocomplete="off" />
+          <button id="music-btn-add-track" class="music-add-btn">إضافة إلى القائمة</button>
+          <div style="font-size: 10px; color: #aeb3bd; text-align: center; margin-top: 4px;">الروابط تحفظ محلياً في
+            جهازك فقط</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- واجهة التشغيل المصغرة لأسفل الشاشة (Mini bottom bar) للموبايل -->
+    <div class="music-body-minimized">
+      <div class="music-mini-info">
+        <span class="music-mini-icon">🎵</span>
+        <span id="music-mini-track-title" class="music-mini-text">لا يوجد تراك</span>
+      </div>
+      <div class="music-mini-controls">
+        <button id="music-mini-btn-prev" class="music-mini-control-btn">⏮</button>
+        <button id="music-mini-btn-play" class="music-mini-control-btn mini-play-btn">▶</button>
+        <button id="music-mini-btn-next" class="music-mini-control-btn">⏭</button>
+        <button id="music-mini-btn-expand" class="music-mini-control-btn">▲</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- نافذة الحوار المخصصة لركن الترفيه (تعديل وحذف) -->
+  <div id="music-custom-modal" class="music-modal-backdrop closed">
+    <div class="music-modal-content">
+      <div class="music-modal-header">
+        <h5 id="music-modal-title">تعديل اسم الأغنية</h5>
+        <button id="music-modal-close" class="music-modal-close-btn">&times;</button>
+      </div>
+      <div class="music-modal-body">
+        <p id="music-modal-message"></p>
+        <input type="text" id="music-modal-input" class="music-modal-input" placeholder="اسم الأغنية الجديد..."
+          autocomplete="off" />
+      </div>
+      <div class="music-modal-footer">
+        <button id="music-modal-btn-cancel" class="music-modal-btn btn-cancel">إلغاء</button>
+        <button id="music-modal-btn-confirm" class="music-modal-btn btn-confirm">حفظ</button>
+      </div>
+    </div>
+  </div>
 
   <script src="js/app.js" defer></script>
 </body>
