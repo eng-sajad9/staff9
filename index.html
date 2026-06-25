@@ -1314,6 +1314,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
 
 
   <!-- إضافة: نافذة تغيير كلمة المرور -->
@@ -1634,9 +1635,39 @@
           <h6>➕ إضافة أغنية جديدة</h6>
           <input type="text" id="music-input-title" placeholder="اسم الأغنية/التراك" autocomplete="off" />
           <input type="text" id="music-input-url" placeholder="رابط مباشر MP3 أو رابط YouTube" autocomplete="off" />
+          
+          <!-- فاصل "أو" -->
+          <div class="music-upload-divider">
+            <span class="music-upload-divider-line"></span>
+            <span class="music-upload-divider-text">أو ارفع ملف صوتي</span>
+            <span class="music-upload-divider-line"></span>
+          </div>
+
+          <!-- زر رفع ملف MP3 -->
+          <div class="music-upload-area" id="music-upload-area">
+            <input type="file" id="music-file-input" accept="audio/*" style="display:none;" />
+            <label for="music-file-input" class="music-upload-label" id="music-upload-label">
+              <span class="music-upload-icon">📁</span>
+              <span class="music-upload-text">اختر ملف صوتي (MP3, WAV, OGG...)</span>
+            </label>
+            <div class="music-upload-file-info" id="music-upload-file-info" style="display:none;">
+              <span class="music-upload-file-name" id="music-upload-file-name"></span>
+              <span class="music-upload-file-size" id="music-upload-file-size"></span>
+              <button class="music-upload-file-remove" id="music-upload-file-remove" title="إزالة">✕</button>
+            </div>
+          </div>
+
+          <!-- شريط تقدم الرفع -->
+          <div class="music-upload-progress-container" id="music-upload-progress-container" style="display:none;">
+            <div class="music-upload-progress-bar">
+              <div class="music-upload-progress-fill" id="music-upload-progress-fill"></div>
+            </div>
+            <span class="music-upload-progress-text" id="music-upload-progress-text">0%</span>
+          </div>
+
           <button id="music-btn-add-track" class="music-add-btn">إضافة إلى القائمة</button>
           <div style="font-size: 10px; color: #aeb3bd; text-align: center; margin-top: 4px;">الروابط تحفظ محلياً في
-            جهازك فقط</div>
+            جهازك فقط • الملفات المرفوعة تحفظ في السيرفر</div>
         </div>
       </div>
     </div>

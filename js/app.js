@@ -2900,6 +2900,7 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 var db = firebase.database();
+var storage = (typeof firebase.storage === 'function') ? firebase.storage() : null;
 
 // Helpers to resolve attendance/employees paths (new unified structure with legacy fallback)
 function attendancePathForDay(dayKey) {
@@ -9754,6 +9755,10 @@ updateWelcomeClock();
   let miniTrackTitle;
   let inputTitle, inputUrl, btnAddTrack;
   let vinylDisc;
+  // File upload elements
+  let fileInput, uploadLabel, uploadFileInfo, uploadFileName, uploadFileSize, uploadFileRemove;
+  let uploadProgressContainer, uploadProgressFill, uploadProgressText;
+  let selectedFile = null;
 
   function init() {
     widget = document.getElementById("music-player-widget");
@@ -9790,6 +9795,17 @@ updateWelcomeClock();
     inputTitle = document.getElementById("music-input-title");
     inputUrl = document.getElementById("music-input-url");
     btnAddTrack = document.getElementById("music-btn-add-track");
+
+    // File Upload Elements
+    fileInput = document.getElementById("music-file-input");
+    uploadLabel = document.getElementById("music-upload-label");
+    uploadFileInfo = document.getElementById("music-upload-file-info");
+    uploadFileName = document.getElementById("music-upload-file-name");
+    uploadFileSize = document.getElementById("music-upload-file-size");
+    uploadFileRemove = document.getElementById("music-upload-file-remove");
+    uploadProgressContainer = document.getElementById("music-upload-progress-container");
+    uploadProgressFill = document.getElementById("music-upload-progress-fill");
+    uploadProgressText = document.getElementById("music-upload-progress-text");
 
     if (!widget) return;
 
@@ -9854,6 +9870,53 @@ updateWelcomeClock();
 
     // Add track event
     btnAddTrack.onclick = addNewTrack;
+
+    // File upload events
+    if (fileInput) {
+      fileInput.onchange = function() {
+        if (this.files && this.files[0]) {
+          handleFileSelection(this.files[0]);
+        }
+      };
+    }
+    if (uploadFileRemove) {
+      uploadFileRemove.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        clearFileSelection();
+      };
+    }
+    // Drag and drop support
+    if (uploadLabel) {
+      uploadLabel.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.classList.add('drag-over');
+      });
+      uploadLabel.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        this.classList.remove('drag-over');
+      });
+      uploadLabel.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('drag-over');
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          const file = e.dataTransfer.files[0];
+          if (file.type.startsWith('audio/')) {
+            handleFileSelection(file);
+          } else {
+            showToast("خطأ", "يرجى اختيار ملف صوتي فقط", "error");
+          }
+        }
+      });
+    }
+    // Disable URL input when file is selected and vice versa
+    if (inputUrl) {
+      inputUrl.addEventListener('input', function() {
+        if (this.value.trim()) {
+          clearFileSelection();
+        }
+      });
+    }
 
     // HTML5 Audio events
     audioPlayer.addEventListener('timeupdate', updateProgress);
@@ -10089,7 +10152,7 @@ updateWelcomeClock();
       try {
         navigator.mediaSession.metadata = new MediaMetadata({
           title: track.title,
-          artist: track.type === "youtube" ? "يوتيوب 📺" : "ملف مباشر 🎵",
+          artist: track.type === "youtube" ? "يوتيوب 📺" : (track.uploaded ? "ملف مرفوع ☁️" : "ملف مباشر 🎵"),
           album: activePlaylist === "official" ? "قائمة الموقع الرسمية" : "قائمتي الشخصية",
           artwork: [
             { src: getTrackThumbnail(track), sizes: '128x128', type: 'image/jpeg' }
@@ -10398,7 +10461,7 @@ updateWelcomeClock();
         loadTrack(visibleTab, index, true);
       };
 
-      const sourceLabel = track.type === "youtube" ? "يوتيوب 📺" : "ملف مباشر 🎵";
+      const sourceLabel = track.type === "youtube" ? "يوتيوب 📺" : (track.uploaded ? "ملف مرفوع ☁️" : "ملف مباشر 🎵");
       const thumbUrl = getTrackThumbnail(track);
       const trackId = track.id || (visibleTab + "_" + index);
       const isLiked = !!likedTracks[trackId];
@@ -10569,13 +10632,107 @@ updateWelcomeClock();
     });
   }
 
-  // Add a new track to playlist
+  // ---- File Upload Helper Functions ----
+
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  function handleFileSelection(file) {
+    if (!file.type.startsWith('audio/')) {
+      showToast("خطأ", "يرجى اختيار ملف صوتي فقط (MP3, WAV, OGG...)", "error");
+      return;
+    }
+    // Max 50MB
+    if (file.size > 50 * 1024 * 1024) {
+      showToast("خطأ", "حجم الملف كبير جداً (الحد الأقصى 50 ميجا)", "error");
+      return;
+    }
+    selectedFile = file;
+    // Show file info
+    if (uploadLabel) uploadLabel.style.display = 'none';
+    if (uploadFileInfo) {
+      uploadFileInfo.style.display = 'flex';
+      uploadFileName.textContent = file.name;
+      uploadFileSize.textContent = formatFileSize(file.size);
+    }
+    // Clear URL input since file was selected
+    if (inputUrl) inputUrl.value = '';
+    // Auto-fill title if empty
+    if (inputTitle && !inputTitle.value.trim()) {
+      // Use filename without extension as title
+      const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+      inputTitle.value = nameWithoutExt;
+    }
+  }
+
+  function clearFileSelection() {
+    selectedFile = null;
+    if (fileInput) fileInput.value = '';
+    if (uploadLabel) uploadLabel.style.display = 'flex';
+    if (uploadFileInfo) uploadFileInfo.style.display = 'none';
+    if (uploadProgressContainer) uploadProgressContainer.style.display = 'none';
+    if (uploadProgressFill) uploadProgressFill.style.width = '0%';
+    if (uploadProgressText) uploadProgressText.textContent = '0%';
+  }
+
+  function uploadFileToStorage(file, title) {
+    return new Promise((resolve, reject) => {
+      if (!storage) {
+        reject(new Error("Firebase Storage غير متوفر"));
+        return;
+      }
+      // Create a unique path: music_uploads/timestamp_filename
+      const safeFileName = file.name.replace(/[^a-zA-Z0-9._\u0621-\u064A-]/g, '_');
+      const storagePath = `music_uploads/${Date.now()}_${safeFileName}`;
+      const storageRef = storage.ref(storagePath);
+
+      const uploadTask = storageRef.put(file);
+
+      // Show progress
+      if (uploadProgressContainer) uploadProgressContainer.style.display = 'flex';
+      if (btnAddTrack) btnAddTrack.classList.add('uploading');
+
+      uploadTask.on('state_changed',
+        function(snapshot) {
+          // Progress
+          const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+          if (uploadProgressFill) uploadProgressFill.style.width = progress + '%';
+          if (uploadProgressText) uploadProgressText.textContent = progress + '%';
+        },
+        function(error) {
+          // Error
+          console.error("Upload error:", error);
+          if (btnAddTrack) btnAddTrack.classList.remove('uploading');
+          if (uploadProgressContainer) uploadProgressContainer.style.display = 'none';
+          reject(error);
+        },
+        function() {
+          // Complete - get download URL
+          uploadTask.snapshot.ref.getDownloadURL().then(function(downloadURL) {
+            if (btnAddTrack) btnAddTrack.classList.remove('uploading');
+            resolve(downloadURL);
+          }).catch(reject);
+        }
+      );
+    });
+  }
+
+  // Add a new track to playlist (supports URL and file upload)
   function addNewTrack() {
     const title = inputTitle.value.trim();
     const url = inputUrl.value.trim();
+    const hasFile = !!selectedFile;
 
-    if (!title || !url) {
-      showToast("خطأ في الإضافة", "يرجى تعبئة جميع الحقول", "error");
+    // Must have title and either URL or file
+    if (!title) {
+      showToast("خطأ في الإضافة", "يرجى كتابة اسم الأغنية", "error");
+      return;
+    }
+    if (!url && !hasFile) {
+      showToast("خطأ في الإضافة", "يرجى إدخال رابط أو رفع ملف صوتي", "error");
       return;
     }
 
@@ -10587,6 +10744,65 @@ updateWelcomeClock();
       return;
     }
 
+    // If file is selected, upload it first
+    if (hasFile) {
+      // Disable button during upload
+      if (btnAddTrack) {
+        btnAddTrack.classList.add('uploading');
+        btnAddTrack.textContent = 'جاري الرفع...';
+      }
+
+      uploadFileToStorage(selectedFile, title).then(function(downloadURL) {
+        const newTrack = {
+          id: Date.now(),
+          title: title,
+          type: "mp3",
+          url: downloadURL,
+          youtubeId: "",
+          uploaded: true // Mark as uploaded file
+        };
+
+        if (isOfficial) {
+          officialTracks.push(newTrack);
+          if (typeof db !== "undefined") {
+            db.ref("music/official_playlist").set(officialTracks);
+          }
+          showToast("ركن الترفيه", "تم رفع الأغنية وإضافتها للموقع بنجاح ✅", "success");
+        } else {
+          privateTracks.push(newTrack);
+          localStorage.setItem("music_playlist", JSON.stringify(privateTracks));
+          showToast("ركن الترفيه", "تم رفع الأغنية وإضافتها لموسيقاك الخاصة ✅", "success");
+        }
+
+        // Reset inputs
+        inputTitle.value = "";
+        inputUrl.value = "";
+        clearFileSelection();
+        renderPlaylist();
+        if (btnAddTrack) {
+          btnAddTrack.classList.remove('uploading');
+          btnAddTrack.textContent = 'إضافة إلى القائمة';
+        }
+
+        // If it's the first track and matches active playlist, play it
+        const list = isOfficial ? officialTracks : privateTracks;
+        if (list.length === 1 && activePlaylist === visibleTab) {
+          loadTrack(visibleTab, 0, true);
+        }
+
+      }).catch(function(err) {
+        console.error("Upload failed:", err);
+        showToast("خطأ في الرفع", "فشل رفع الملف: " + (err.message || "خطأ غير معروف"), "error");
+        if (btnAddTrack) {
+          btnAddTrack.classList.remove('uploading');
+          btnAddTrack.textContent = 'إضافة إلى القائمة';
+        }
+      });
+
+      return; // Wait for upload to complete
+    }
+
+    // ---- URL-based track (existing logic) ----
     let type = "mp3";
     let youtubeId = "";
 
@@ -10626,6 +10842,7 @@ updateWelcomeClock();
     if (list.length === 1 && activePlaylist === visibleTab) {
       loadTrack(visibleTab, 0, true);
     }
+    renderPlaylist();
   }
 
   // Helper to extract YT ID (Robust parser for all formats)
