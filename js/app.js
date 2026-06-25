@@ -9871,6 +9871,18 @@ updateWelcomeClock();
     // Initialize progress timer
     setInterval(updateProgress, 500);
 
+    // Bind Media Session Action Handlers for background playback & lock screen control
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.setActionHandler('play', togglePlay);
+        navigator.mediaSession.setActionHandler('pause', togglePlay);
+        navigator.mediaSession.setActionHandler('previoustrack', playPrevTrack);
+        navigator.mediaSession.setActionHandler('nexttrack', playNextTrack);
+      } catch (e) {
+        console.warn("Media Session API actions setup failed:", e);
+      }
+    }
+
     // Make player draggable
     makeWidgetDraggable();
   }
@@ -10072,6 +10084,22 @@ updateWelcomeClock();
     if (vinylTitle) vinylTitle.textContent = track.title;
     if (vinylSource) vinylSource.textContent = track.type === "youtube" ? "YOUTUBE" : "MP3";
 
+    // Update Media Session Metadata for lock screen & background play
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: track.title,
+          artist: track.type === "youtube" ? "يوتيوب 📺" : "ملف مباشر 🎵",
+          album: activePlaylist === "official" ? "قائمة الموقع الرسمية" : "قائمتي الشخصية",
+          artwork: [
+            { src: getTrackThumbnail(track), sizes: '128x128', type: 'image/jpeg' }
+          ]
+        });
+      } catch (e) {
+        console.warn("Media Session Metadata update failed:", e);
+      }
+    }
+
     // Highlight active in list
     const items = playlistList.querySelectorAll(".music-track-item");
     items.forEach((item, idx) => {
@@ -10173,6 +10201,13 @@ updateWelcomeClock();
       widget.classList.add("playing");
     } else {
       widget.classList.remove("playing");
+    }
+
+    // Update Media Session playback state
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+      } catch (e) {}
     }
   }
 
